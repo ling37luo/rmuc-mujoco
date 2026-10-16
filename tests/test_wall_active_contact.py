@@ -5,9 +5,9 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-from rmuc2026_mujoco import wall_active_contact
-from rmuc2026_mujoco.query import HeightFieldData
-from rmuc2026_mujoco.wall_active_contact import _exact_source_convex_mesh, _replace_wall_roof
+from rmuc_mujoco import wall_active_contact
+from rmuc_mujoco.query import HeightFieldData
+from rmuc_mujoco.wall_active_contact import _exact_source_convex_mesh, _replace_wall_roof
 
 
 def _fixture():

@@ -163,7 +163,7 @@ def download_official_step(
     if target.parent.is_symlink():
         raise DownloadError(f"destination parent must not be a symlink: {target.parent}")
 
-    request = Request(OFFICIAL_STEP_URL, headers={"User-Agent": "rmuc2026-mujoco/0.2"})
+    request = Request(OFFICIAL_STEP_URL, headers={"User-Agent": "rmuc-mujoco/0.2"})
     temporary_path: Path | None = None
     try:
         with tempfile.NamedTemporaryFile(
@@ -270,7 +270,7 @@ def download_official_rulebook_v2_0_0(
 
     request = Request(
         OFFICIAL_RULEBOOK_V2_0_0_URL,
-        headers={"User-Agent": "rmuc2026-mujoco/0.2"},
+        headers={"User-Agent": "rmuc-mujoco/0.2"},
     )
     temporary_path: Path | None = None
     try:

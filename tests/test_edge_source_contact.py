@@ -7,8 +7,8 @@ from types import SimpleNamespace
 import numpy as np
 import pytest
 
-from rmuc2026_mujoco import edge_source_contact
-from rmuc2026_mujoco.query import HeightFieldData
+from rmuc_mujoco import edge_source_contact
+from rmuc_mujoco.query import HeightFieldData
 
 
 def test_source_roof_prism_is_closed_and_transfers_only_owned_grid_nodes() -> None:

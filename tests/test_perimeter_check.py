@@ -5,8 +5,8 @@ from types import SimpleNamespace
 import numpy as np
 import pytest
 
-from rmuc2026_mujoco.cli import main
-from rmuc2026_mujoco.perimeter_check import (
+from rmuc_mujoco.cli import main
+from rmuc_mujoco.perimeter_check import (
     _wheel_model,
     build_perimeter_catalog,
     fence_corners,
@@ -54,7 +54,7 @@ def _flat_probe(tmp_path, monkeypatch, *, wall=True, gap=False):
         f'<mujoco><option timestep=".002"/><worldbody>{floor}{fence}</worldbody></mujoco>'
     )
     monkeypatch.setattr(
-        "rmuc2026_mujoco.perimeter_check.inject_exact_heightfield", lambda *a, **k: None
+        "rmuc_mujoco.perimeter_check.inject_exact_heightfield", lambda *a, **k: None
     )
     route = {
         "id": "synthetic",
@@ -97,7 +97,7 @@ def test_pack_without_fence_is_not_silently_accepted(field_asset_dir):
 
 @pytest.mark.parametrize("kind", ["perimeter", "wall"])
 def test_cli_forwards_profiles_and_preserves_existing_report(tmp_path, monkeypatch, kind):
-    from rmuc2026_mujoco import perimeter_check, wall_check
+    from rmuc_mujoco import perimeter_check, wall_check
 
     received = {}
 

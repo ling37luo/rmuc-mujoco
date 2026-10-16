@@ -2,8 +2,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from rmuc2026_mujoco import FieldAsset
-from rmuc2026_mujoco.acceptance_routes import (
+from rmuc_mujoco import FieldAsset
+from rmuc_mujoco.acceptance_routes import (
     _fence_routes,
     _source_wall_routes,
     build_preset_routes,
@@ -61,7 +61,7 @@ def test_complete_presets_bind_pack_and_omit_unlocated_stairs(
 ) -> None:
     asset = FieldAsset.open(field_asset_dir, verify=True)
     monkeypatch.setattr(
-        "rmuc2026_mujoco.acceptance_routes.slope_catalog",
+        "rmuc_mujoco.acceptance_routes.slope_catalog",
         lambda _asset: {
             "patches": [
                 {
@@ -76,7 +76,7 @@ def test_complete_presets_bind_pack_and_omit_unlocated_stairs(
         },
     )
     monkeypatch.setattr(
-        "rmuc2026_mujoco.acceptance_routes.fly_route_descriptor",
+        "rmuc_mujoco.acceptance_routes.fly_route_descriptor",
         lambda _asset, scenario: {
             "approach_xyz_m": [0.0, 0.0, 0.0],
             "takeoff_xyz_m": [0.8, 0.0, 0.2],

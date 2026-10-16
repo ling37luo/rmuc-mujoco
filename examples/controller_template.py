@@ -1,4 +1,4 @@
-"""Tiny controller module for ``rmuc2026-field view --controller``.
+"""Tiny controller module for ``rmuc-field view --controller``.
 
 Replace the body with a user's keyboard or policy logic.  The field package
 does not assume actuator names, wheel layout, or an action space.

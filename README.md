@@ -1,4 +1,4 @@
-# rmuc2026-mujoco
+# rmuc-mujoco
 
 An open-source RMUC 2026 field builder and simulation interface for MuJoCo.
 Build the field from the pinned official CAD source, attach your robot and
@@ -21,14 +21,14 @@ python3 -m venv .venv
 source .venv/bin/activate
 python -m pip install '.[build,viewer]'
 
-rmuc2026-field setup ./local-rmuc2026-field \
+rmuc-field setup ./local-rmuc2026-field \
   --heightfield-resolution 0.01 --include-surface-guide
-rmuc2026-field verify ./local-rmuc2026-field
-rmuc2026-field view ./local-rmuc2026-field
+rmuc-field verify ./local-rmuc2026-field
+rmuc-field view ./local-rmuc2026-field
 ```
 
 `setup` downloads verified sources into a local cache and creates a new pack.
-To inspect the pinned source identity first, run `rmuc2026-field source`.
+To inspect the pinned source identity first, run `rmuc-field source`.
 Existing output directories are not overwritten; reuse a completed pack or
 choose a new output directory. For source contact checks, add
 `--keep-source-build ./runs/field-source` to the build command to retain the CAD
@@ -38,8 +38,8 @@ Python venv component or use `uv venv .venv`, activate it, and run `uv pip insta
 A physical perimeter is an optional addition. For a newly built schema-2 pack:
 
 ```bash
-rmuc2026-field fence-pack ./local-rmuc2026-field ./runs/field-fenced
-rmuc2026-field view ./runs/field-fenced
+rmuc-field fence-pack ./local-rmuc2026-field ./runs/field-fenced
+rmuc-field view ./runs/field-fenced
 ```
 
 This creates a new pack with a four-sided containment proxy. Its placement and
@@ -56,14 +56,14 @@ openings are approximations; the base `setup` output does not include this fence
 `full` is the viewer default; batch runs default to `collision_only`.
 Profiles in the same pack share collision and material parameters. The lite
 profile has not demonstrated a consistent resource benefit, so it is not the
-recommended performance option. See `rmuc2026-field lite-pack --help` to build one.
+recommended performance option. See `rmuc-field lite-pack --help` to build one.
 Use [`benchmark` and `benchmark-view`](docs/TRAINING.md#performance-and-parallel-layout)
 to compare worker layouts, memory and visible frame throughput on your host.
 
 ## Display and interaction
 
 ```bash
-rmuc2026-field view ./local-rmuc2026-field \
+rmuc-field view ./local-rmuc2026-field \
   --profile full --lighting flat --livery off
 ```
 
@@ -76,7 +76,7 @@ rmuc2026-field view ./local-rmuc2026-field \
 To drive the included example rover on an available ordinary-slope route:
 
 ```bash
-rmuc2026-field view ./local-rmuc2026-field \
+rmuc-field view ./local-rmuc2026-field \
   --scenario slope_basic --profile full --control human --camera spawn
 ```
 
@@ -90,7 +90,7 @@ Supply a robot-only MJCF and a controller for its actuators. This public example
 checks composition and stepping with a passive sphere; it does not drive a robot:
 
 ```bash
-rmuc2026-field view ./local-rmuc2026-field \
+rmuc-field view ./local-rmuc2026-field \
   --robot examples/simple_robot.xml \
   --controller examples/controller_template.py:make \
   --profile collision_only --headless --steps 1000
@@ -99,7 +99,7 @@ rmuc2026-field view ./local-rmuc2026-field \
 After creating your own `robot.xml` and `controller.py`, use:
 
 ```bash
-rmuc2026-field view ./local-rmuc2026-field \
+rmuc-field view ./local-rmuc2026-field \
   --robot ./robot.xml --controller ./controller.py:make \
   --control policy --profile full
 ```
@@ -114,7 +114,7 @@ controller is passive.
 Python integrations use the same composition:
 
 ```python
-from rmuc2026_mujoco import FieldAsset, compose_with_robot
+from rmuc_mujoco import FieldAsset, compose_with_robot
 
 field = FieldAsset.open("./local-rmuc2026-field", verify=True)
 model, data = compose_with_robot(field, "./robot.xml", profile="collision_only")
@@ -140,7 +140,7 @@ The [training guide](docs/TRAINING.md) covers commands, controller interfaces
 and parallel execution. The [Isaac adapter](adapters/isaac/README.md) exports
 field data and provides a separate PhysX contact probe.
 
-`rmuc2026-field check PACK --source-manifest SOURCE/manifest.json --output runs/check.json`
+`rmuc-field check PACK --source-manifest SOURCE/manifest.json --output runs/check.json`
 runs the [portable field regression](docs/TRAINING.md#one-command-field-regression)
 with included robots and automatically generated routes. The report separates
 field checks from robot task outcomes and identifies unavailable pack features.
@@ -167,7 +167,7 @@ pack's parameters. The project is an unofficial simulator.
 - [Technical references](DESIGN_REFERENCES.md)
 - [Asset policy](ASSET_POLICY.md) and [third-party notices](THIRD_PARTY_NOTICES.md)
 
-For more options, run `rmuc2026-field --help` or a subcommand's `--help`.
+For more options, run `rmuc-field --help` or a subcommand's `--help`.
 Tests use synthetic fixtures and do not download official assets.
 
 ## 中文说明

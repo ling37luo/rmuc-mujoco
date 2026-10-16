@@ -6,12 +6,12 @@ import mujoco
 import numpy as np
 import pytest
 
-from rmuc2026_mujoco import FieldAsset
-from rmuc2026_mujoco.cli import main
-from rmuc2026_mujoco.mjcf import FIELD_COLLISION_GEOM_NAME
-from rmuc2026_mujoco.query import height_at
-from rmuc2026_mujoco.slope_batch import run_slope_batch
-from rmuc2026_mujoco.stairs import _reference_step, load_stair_catalog, screen_step
+from rmuc_mujoco import FieldAsset
+from rmuc_mujoco.cli import main
+from rmuc_mujoco.mjcf import FIELD_COLLISION_GEOM_NAME
+from rmuc_mujoco.query import height_at
+from rmuc_mujoco.slope_batch import run_slope_batch
+from rmuc_mujoco.stairs import _reference_step, load_stair_catalog, screen_step
 
 
 def step_samples(edge=0.0):
@@ -172,7 +172,7 @@ def test_stair_view_does_not_silently_fall_back_to_a_slope(field_asset_dir, caps
 
 def test_source_ray_miss_returns_unmeasured_not_fabricated_ground():
     import trimesh
-    from rmuc2026_mujoco.stairs import _source_top
+    from rmuc_mujoco.stairs import _source_top
 
     mesh = trimesh.Trimesh(
         vertices=[[0, 0, 0], [1, 0, 0], [0, 1, 0]], faces=[[0, 1, 2]], process=False
@@ -186,11 +186,11 @@ def test_source_ray_miss_returns_unmeasured_not_fabricated_ground():
 def test_paired_checks_do_not_pass_just_because_both_wheels_were_blocked(
     field_asset_dir, monkeypatch, changed
 ):
-    from rmuc2026_mujoco.stairs import run_stair_checks
+    from rmuc_mujoco.stairs import run_stair_checks
 
     field = FieldAsset.open(field_asset_dir)
     catalog = synthetic_catalog(field)
-    monkeypatch.setattr("rmuc2026_mujoco.stairs.build_stair_catalog", lambda *args: catalog)
+    monkeypatch.setattr("rmuc_mujoco.stairs.build_stair_catalog", lambda *args: catalog)
     baseline = dict(
         finite=True,
         warnings={},
@@ -213,7 +213,7 @@ def test_paired_checks_do_not_pass_just_because_both_wheels_were_blocked(
                 result["warnings"] = {"mjWARN_BADQACC": 1}
         return result
 
-    monkeypatch.setattr("rmuc2026_mujoco.acceptance._run_route", run)
+    monkeypatch.setattr("rmuc_mujoco.acceptance._run_route", run)
     result = run_stair_checks(field, "unused", speeds=[0.3])
     assert result["status"] == "FAIL"
     assert result["summary"]["passed"] == 0

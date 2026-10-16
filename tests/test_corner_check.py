@@ -4,9 +4,9 @@ import mujoco
 import numpy as np
 import pytest
 
-from rmuc2026_mujoco.corner_check import TraceDigest, drive_corner, plan_corner_route
-from rmuc2026_mujoco.query import HeightFieldData
-from rmuc2026_mujoco.slope_demo import rover_xml
+from rmuc_mujoco.corner_check import TraceDigest, drive_corner, plan_corner_route
+from rmuc_mujoco.query import HeightFieldData
+from rmuc_mujoco.slope_demo import rover_xml
 
 
 def test_corner_planner_routes_around_a_barrier_deterministically():

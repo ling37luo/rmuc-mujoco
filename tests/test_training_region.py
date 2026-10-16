@@ -9,16 +9,16 @@ import mujoco
 import numpy as np
 import pytest
 
-from rmuc2026_mujoco.errors import AssetIntegrityError, ManifestError
-from rmuc2026_mujoco.fly_batch import run_fly_batch
-from rmuc2026_mujoco.isaac import (
+from rmuc_mujoco.errors import AssetIntegrityError, ManifestError
+from rmuc_mujoco.fly_batch import run_fly_batch
+from rmuc_mujoco.isaac import (
     export_isaac_training_region,
     load_isaac_training_region,
     load_isaac_training_region_export,
 )
-from rmuc2026_mujoco.manifest import sha256_file
-from rmuc2026_mujoco.query import HeightFieldData
-from rmuc2026_mujoco.training_region import (
+from rmuc_mujoco.manifest import sha256_file
+from rmuc_mujoco.query import HeightFieldData
+from rmuc_mujoco.training_region import (
     TrainingRegion,
     _heightfield_png,
     _profile_hash,
@@ -70,10 +70,10 @@ def _fake_source(tmp_path: Path, monkeypatch) -> tuple[SimpleNamespace, HeightFi
         "landing_target_xyz_m": [0.5, 0.0, 0.12],
         "spawn": {"xyz_m": [-0.5, 0.0, 0.08], "heading_yaw_rad": 0.0},
     }
-    monkeypatch.setattr("rmuc2026_mujoco.training_region.fly_route_descriptor", lambda *_: route)
-    monkeypatch.setattr("rmuc2026_mujoco.training_region.load_heightfield", lambda *_: world)
+    monkeypatch.setattr("rmuc_mujoco.training_region.fly_route_descriptor", lambda *_: route)
+    monkeypatch.setattr("rmuc_mujoco.training_region.load_heightfield", lambda *_: world)
     monkeypatch.setattr(
-        "rmuc2026_mujoco.training_region.scenario_descriptor",
+        "rmuc_mujoco.training_region.scenario_descriptor",
         lambda *_args, **_kwargs: {"profile_hash": "c" * 64},
     )
     return asset, world

@@ -13,7 +13,7 @@ import pytest
 from PIL import Image
 import mujoco
 
-from rmuc2026_mujoco import (
+from rmuc_mujoco import (
     AssetIntegrityError,
     FieldAsset,
     FieldBoundaryGuard,
@@ -22,9 +22,9 @@ from rmuc2026_mujoco import (
     height_at,
     load_model,
 )
-from rmuc2026_mujoco.collision_candidate import SOURCE_GLB_SHA256
-from rmuc2026_mujoco.download import OFFICIAL_STEP_SHA256, OFFICIAL_STEP_SIZE
-from rmuc2026_mujoco.pack import (
+from rmuc_mujoco.collision_candidate import SOURCE_GLB_SHA256
+from rmuc_mujoco.download import OFFICIAL_STEP_SHA256, OFFICIAL_STEP_SIZE
+from rmuc_mujoco.pack import (
     PUBLIC_DISPLAY_BASE_SURFACE_SCALE,
     PUBLIC_DISPLAY_PROFILE,
     ExportBlocked,
@@ -38,15 +38,15 @@ from rmuc2026_mujoco.pack import (
     _write_surface_guide_mesh,
     export_runtime_asset_pack,
 )
-from rmuc2026_mujoco.livery import (
+from rmuc_mujoco.livery import (
     GROUND_MARKING_KNOWN_LIMITATIONS,
     GROUND_MARKING_OVERLAY_KIND,
     GROUND_MARKING_PROCESSING_ALGORITHM,
     GROUND_MARKING_REMOVED_BY_DESIGN,
     GROUND_MARKING_RETAINED_CONTENT,
 )
-from rmuc2026_mujoco.lite_profile import export_interactive_lite_pack
-from rmuc2026_mujoco.perimeter_fence import (
+from rmuc_mujoco.lite_profile import export_interactive_lite_pack
+from rmuc_mujoco.perimeter_fence import (
     FENCE_NAMES,
     HEIGHTFIELD_EDGE_FENCE_SCHEMA,
     LEGACY_FENCE_SCHEMA,
@@ -55,7 +55,7 @@ from rmuc2026_mujoco.perimeter_fence import (
     export_fenced_pack,
     perimeter_fence_contract,
 )
-from rmuc2026_mujoco.ramp_audit import FIXED_FLY_RAMPS
+from rmuc_mujoco.ramp_audit import FIXED_FLY_RAMPS
 
 
 def _sha(path: Path) -> str:

@@ -1,8 +1,8 @@
 import pytest
 
-from rmuc2026_mujoco.cli import build_parser
-from rmuc2026_mujoco.scenarios import get_scenario
-from rmuc2026_mujoco.slope_progress import SlopeProgress
+from rmuc_mujoco.cli import build_parser
+from rmuc_mujoco.scenarios import get_scenario
+from rmuc_mujoco.slope_progress import SlopeProgress
 
 
 ROUTE = {"length_m": 1.69}

@@ -8,8 +8,8 @@ import threading
 
 import pytest
 
-from rmuc2026_mujoco import DownloadedStep, FieldAsset
-from rmuc2026_mujoco.cli import (
+from rmuc_mujoco import DownloadedStep, FieldAsset
+from rmuc_mujoco.cli import (
     _configure_camera,
     _controller_reserved_keys,
     _drain_controller_keys,
@@ -18,7 +18,7 @@ from rmuc2026_mujoco.cli import (
     build_parser,
     main,
 )
-from rmuc2026_mujoco.download import DownloadedRulebook
+from rmuc_mujoco.download import DownloadedRulebook
 
 
 def test_verify_cli_emits_machine_readable_pass(field_asset_dir: Path, capsys) -> None:
@@ -206,7 +206,7 @@ def test_display_keys_are_focus_scoped_and_toggle_once_per_press(monkeypatch) ->
 
     focused = [True]
     now = [10.0]
-    monkeypatch.setattr("rmuc2026_mujoco.cli.time.monotonic", lambda: now[0])
+    monkeypatch.setattr("rmuc_mujoco.cli.time.monotonic", lambda: now[0])
     changed: list[str] = []
     driving: list[str] = []
     close_requested = threading.Event()
@@ -286,7 +286,7 @@ def test_display_keys_fail_closed_without_selective_native_interception(monkeypa
             def __init__(self, **_callbacks) -> None:
                 raise AssertionError("listener must not start without an interceptor")
 
-    monkeypatch.setattr("rmuc2026_mujoco.cli.create_viewer_key_interceptor", lambda: None)
+    monkeypatch.setattr("rmuc_mujoco.cli.create_viewer_key_interceptor", lambda: None)
 
     assert (
         _start_display_key_listener(
@@ -520,8 +520,8 @@ def test_setup_cli_downloads_then_builds_locally(
             "validation_status": "DRAFT_BLOCKED",
         }
 
-    monkeypatch.setattr("rmuc2026_mujoco.cli.download_official_step", fake_download)
-    monkeypatch.setattr("rmuc2026_mujoco.cli.build_runtime_asset_pack", fake_build)
+    monkeypatch.setattr("rmuc_mujoco.cli.download_official_step", fake_download)
+    monkeypatch.setattr("rmuc_mujoco.cli.build_runtime_asset_pack", fake_build)
 
     assert (
         main(
@@ -565,7 +565,7 @@ def test_setup_with_surface_guide_downloads_verified_rulebook(
     calls: list[str] = []
 
     monkeypatch.setattr(
-        "rmuc2026_mujoco.cli.download_official_step",
+        "rmuc_mujoco.cli.download_official_step",
         lambda *_args, **_kwargs: DownloadedStep(
             step,
             1_254_821_405,
@@ -594,10 +594,10 @@ def test_setup_with_surface_guide_downloads_verified_rulebook(
         }
 
     monkeypatch.setattr(
-        "rmuc2026_mujoco.cli.download_official_rulebook_v2_0_0",
+        "rmuc_mujoco.cli.download_official_rulebook_v2_0_0",
         fake_rulebook,
     )
-    monkeypatch.setattr("rmuc2026_mujoco.cli.build_runtime_asset_pack", fake_build)
+    monkeypatch.setattr("rmuc_mujoco.cli.build_runtime_asset_pack", fake_build)
 
     assert (
         main(

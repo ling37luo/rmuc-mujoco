@@ -1,13 +1,13 @@
 """Free-flight dynamics probe for the two fixed RMUC 2026 fly ramps.
 
-The rolling-wheel probe in :mod:`rmuc2026_mujoco.wheel_probe` stops at the
+The rolling-wheel probe in :mod:`rmuc_mujoco.wheel_probe` stops at the
 takeoff seam.  This module continues the same constrained 120 mm wheel with
 zero longitudinal force after takeoff, measures the runtime heightfield's gap,
 and distinguishes a lip impact from a wheel that reaches the landing top.
 
 Run the ten-trial characterization matrix with::
 
-    python -m rmuc2026_mujoco.jump_probe PACK --output jump-probe.json
+    python -m rmuc_mujoco.jump_probe PACK --output jump-probe.json
 """
 
 from __future__ import annotations
@@ -596,7 +596,7 @@ def run_fixed_fly_ramp_jump_probe(
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        prog="python -m rmuc2026_mujoco.jump_probe",
+        prog="python -m rmuc_mujoco.jump_probe",
         description="Characterize fixed-fly-ramp free flight and landing contact.",
     )
     parser.add_argument("pack", type=Path, help="validated RMUC 2026 runtime-pack directory")

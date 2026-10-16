@@ -1,4 +1,4 @@
-"""Minimal external controller template for ``rmuc2026-field run``.
+"""Minimal external controller template for ``rmuc-field run``.
 
 Copy this module into a user's controller project and replace ``step`` with
 the robot-specific observation/action mapping.  The field package never

@@ -63,7 +63,7 @@ from .viewer import (
 
 
 def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(prog="rmuc2026-field")
+    parser = argparse.ArgumentParser(prog="rmuc-field")
     commands = parser.add_subparsers(dest="command", required=True)
     commands.add_parser("source", help="print the pinned official source identity")
     download = commands.add_parser("download", help="download directly from the official URL")
@@ -1244,7 +1244,7 @@ def main(argv: list[str] | None = None) -> int:
         TypeError,
         ValueError,
     ) as exc:
-        print(f"rmuc2026-field: {exc}", file=sys.stderr)
+        print(f"rmuc-field: {exc}", file=sys.stderr)
         return 2
 
 

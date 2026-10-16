@@ -8,7 +8,7 @@ import numpy as np
 
 import pytest
 
-from rmuc2026_mujoco import (
+from rmuc_mujoco import (
     FIELD_COLLISION_GEOM_NAME,
     UNOFFICIAL_FRICTION_PRESETS,
     FieldAsset,

@@ -4,8 +4,8 @@ import mujoco
 import numpy as np
 import pytest
 
-from rmuc2026_mujoco import MujocoModelError, apply_friction_preset
-from rmuc2026_mujoco.contact import refine_planar_ramps
+from rmuc_mujoco import MujocoModelError, apply_friction_preset
+from rmuc_mujoco.contact import refine_planar_ramps
 
 
 @pytest.mark.parametrize("explicit", [False, True])

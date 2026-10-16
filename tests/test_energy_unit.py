@@ -7,7 +7,7 @@ import math
 import mujoco
 import pytest
 
-from rmuc2026_mujoco.energy_unit import add_energy_unit
+from rmuc_mujoco.energy_unit import add_energy_unit
 
 
 def _flat_scene() -> mujoco.MjSpec:

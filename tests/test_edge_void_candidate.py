@@ -1,8 +1,8 @@
 import numpy as np
 import pytest
 
-from rmuc2026_mujoco.collision_candidate import SOURCE_GLB_SHA256
-from rmuc2026_mujoco.edge_void_candidate import (
+from rmuc_mujoco.collision_candidate import SOURCE_GLB_SHA256
+from rmuc_mujoco.edge_void_candidate import (
     make_edge_void_candidate,
     outer_edge_sample_mask,
     raycast_outer_edge_hits,

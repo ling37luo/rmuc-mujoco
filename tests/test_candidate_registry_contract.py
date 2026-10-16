@@ -6,7 +6,7 @@ from copy import deepcopy
 
 import pytest
 
-from rmuc2026_mujoco.candidate_registry_contract import (
+from rmuc_mujoco.candidate_registry_contract import (
     REGISTRY_ACTIVATION,
     REGISTRY_ARTIFACT_TYPE,
     REGISTRY_COORDINATE_FRAME,

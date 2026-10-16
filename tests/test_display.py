@@ -6,7 +6,7 @@ import mujoco
 import numpy as np
 import pytest
 
-from rmuc2026_mujoco import FieldAsset, FieldDisplayController, ManifestError, MujocoModelError
+from rmuc_mujoco import FieldAsset, FieldDisplayController, ManifestError, MujocoModelError
 
 
 def _asset(

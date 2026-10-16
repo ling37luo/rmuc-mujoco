@@ -10,7 +10,7 @@ import zlib
 import numpy as np
 import pytest
 
-from rmuc2026_mujoco import AssetIntegrityError, FieldAsset, ManifestError, verify_asset
+from rmuc_mujoco import AssetIntegrityError, FieldAsset, ManifestError, verify_asset
 
 
 def _png_chunk(kind: bytes, data: bytes) -> bytes:
@@ -515,7 +515,7 @@ def test_png_unfilter_recovers_every_scanline_filter(tmp_path: Path, filter_type
 
     from PIL import Image
 
-    from rmuc2026_mujoco.manifest import _png_scanline_payload, _unfilter_png_scanlines
+    from rmuc_mujoco.manifest import _png_scanline_payload, _unfilter_png_scanlines
 
     rng = np.random.default_rng(filter_type)
     values = rng.integers(0, 65536, size=(7, 9), dtype=np.uint16)

@@ -7,7 +7,7 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from rmuc2026_mujoco import collision_candidate
+from rmuc_mujoco import collision_candidate
 
 
 def _sha(data: bytes) -> str:

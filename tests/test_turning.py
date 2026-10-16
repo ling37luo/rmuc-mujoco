@@ -2,14 +2,14 @@ from __future__ import annotations
 
 import mujoco
 
-from rmuc2026_mujoco import (
+from rmuc_mujoco import (
     NoOpTurnController,
     TurnSpawn,
     run_turn_episode,
     turn_phase,
     turn_phase_registry,
 )
-from rmuc2026_mujoco.cli import build_parser
+from rmuc_mujoco.cli import build_parser
 
 
 def test_turn_phase_command_grids_are_deterministic() -> None:

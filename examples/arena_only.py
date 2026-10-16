@@ -7,7 +7,7 @@ import time
 
 import mujoco.viewer
 
-from rmuc2026_mujoco import FieldAsset, load_model
+from rmuc_mujoco import FieldAsset, load_model
 
 
 def main() -> None:

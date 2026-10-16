@@ -10,7 +10,7 @@ import zlib
 import numpy as np
 import pytest
 
-from rmuc2026_mujoco import (
+from rmuc_mujoco import (
     FieldAsset,
     ManifestError,
     OutOfBoundsError,

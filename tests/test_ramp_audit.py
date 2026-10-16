@@ -5,8 +5,8 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from rmuc2026_mujoco import builder
-from rmuc2026_mujoco._conversion import (
+from rmuc_mujoco import builder
+from rmuc_mujoco._conversion import (
     MAXIMUM_HEIGHTFIELD_SAMPLES,
     MINIMUM_HEIGHTFIELD_RESOLUTION_M,
     FieldBuildError,
@@ -14,7 +14,7 @@ from rmuc2026_mujoco._conversion import (
     _heightfield_grid_axes,
     _square_local_range,
 )
-from rmuc2026_mujoco.ramp_audit import (
+from rmuc_mujoco.ramp_audit import (
     FIXED_FLY_RAMPS,
     WHEEL_PROBE_SPEEDS_M_S,
     WHEEL_PROBE_LOW_SIDE_APPROACH_M,
@@ -208,8 +208,8 @@ def test_runtime_builder_forwards_surface_guide_without_retaining_full_build(
         return {}
 
     monkeypatch.setattr(builder, "build_from_official_step", fake_build)
-    monkeypatch.setattr("rmuc2026_mujoco._conversion.decorate_field_build", fake_decorate)
-    monkeypatch.setattr("rmuc2026_mujoco.pack.export_runtime_asset_pack", fake_export)
+    monkeypatch.setattr("rmuc_mujoco._conversion.decorate_field_build", fake_decorate)
+    monkeypatch.setattr("rmuc_mujoco.pack.export_runtime_asset_pack", fake_export)
     destination = tmp_path / "runtime-pack"
 
     result = builder.build_runtime_asset_pack(

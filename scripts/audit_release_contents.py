@@ -332,7 +332,7 @@ def audit_archive(path: Path) -> dict[str, object]:
 
 def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        description="Audit wheel/sdist contents before publishing rmuc2026-mujoco."
+        description="Audit wheel/sdist contents before publishing rmuc-mujoco."
     )
     parser.add_argument("archives", nargs="+", type=Path, help="wheel and/or source archive")
     return parser

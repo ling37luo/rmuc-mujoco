@@ -7,7 +7,7 @@ from types import SimpleNamespace
 import numpy as np
 import pytest
 
-from rmuc2026_mujoco.wall_tip_repair import (
+from rmuc_mujoco.wall_tip_repair import (
     SOURCE_GLB_SHA256,
     _projected_top,
     repair_verified_wall_tips,

@@ -5,7 +5,7 @@ from pathlib import Path
 
 import pytest
 
-from rmuc2026_mujoco import builder
+from rmuc_mujoco import builder
 
 
 def test_runtime_import_does_not_eagerly_import_cad_stack() -> None:
@@ -45,7 +45,7 @@ def test_optional_source_retention_supports_reproducible_audits(tmp_path, monkey
         return {"status": "PASS"}
 
     monkeypatch.setattr(builder, "build_from_official_step", build)
-    monkeypatch.setattr("rmuc2026_mujoco.pack.export_runtime_asset_pack", export)
+    monkeypatch.setattr("rmuc_mujoco.pack.export_runtime_asset_pack", export)
     result = builder.build_runtime_asset_pack(
         tmp_path / "input.step",
         tmp_path / "runtime",

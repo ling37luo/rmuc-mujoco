@@ -1,6 +1,6 @@
 """Repeatable, robot-independent field physics and profile benchmarks.
 
-Run with ``python -m rmuc2026_mujoco.acceptance PACK --output runs/field.json``.
+Run with ``python -m rmuc_mujoco.acceptance PACK --output runs/field.json``.
 An optional route file supplies local, world-space approaches to seams and
 walls; no unreleased CAD coordinates or private robot assets are embedded here.
 The 120 mm route wheel is constrained to its centreline, so its results are

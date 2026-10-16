@@ -3,7 +3,7 @@ import json
 import numpy as np
 import pytest
 
-from rmuc2026_mujoco.performance import run_benchmark, summarize, wheel_command
+from rmuc_mujoco.performance import run_benchmark, summarize, wheel_command
 from test_query import _replace_heightfield
 
 
@@ -51,8 +51,8 @@ def test_command_has_stop_drive_turn_reverse():
 
 
 def test_benchmark_cli_reports_parity(tmp_path, monkeypatch, capsys):
-    from rmuc2026_mujoco import performance
-    from rmuc2026_mujoco.cli import main
+    from rmuc_mujoco import performance
+    from rmuc_mujoco.cli import main
 
     received = {}
 
@@ -84,7 +84,7 @@ def test_benchmark_cli_reports_parity(tmp_path, monkeypatch, capsys):
 
 
 def test_png_capture_is_readable(tmp_path):
-    from rmuc2026_mujoco.performance_view import _save_png
+    from rmuc_mujoco.performance_view import _save_png
     from PIL import Image
 
     pixels = np.zeros((4, 7, 3), dtype=np.uint8)

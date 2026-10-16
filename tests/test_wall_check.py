@@ -2,9 +2,9 @@ import numpy as np
 import pytest
 import trimesh
 
-from rmuc2026_mujoco.wall_check import audit_wall_ownership, run_corner_route
-from rmuc2026_mujoco.perimeter_check import run_wheel_route
-from rmuc2026_mujoco.query import HeightFieldData
+from rmuc_mujoco.wall_check import audit_wall_ownership, run_corner_route
+from rmuc_mujoco.perimeter_check import run_wheel_route
+from rmuc_mujoco.query import HeightFieldData
 from test_perimeter_check import _flat_probe
 
 

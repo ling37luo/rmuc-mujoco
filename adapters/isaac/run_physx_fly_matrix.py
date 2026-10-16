@@ -20,7 +20,7 @@ import subprocess
 import time
 from typing import Any
 
-from rmuc2026_mujoco import load_isaac_training_region_export
+from rmuc_mujoco import load_isaac_training_region_export
 
 
 _SIDES = ("north", "south")

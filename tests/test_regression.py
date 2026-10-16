@@ -2,8 +2,8 @@ import json
 
 import pytest
 
-from rmuc2026_mujoco import regression
-from rmuc2026_mujoco.cli import main
+from rmuc_mujoco import regression
+from rmuc_mujoco.cli import main
 
 
 def test_suite_reports_failure_and_continues_remaining_sections(

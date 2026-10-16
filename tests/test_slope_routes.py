@@ -6,9 +6,9 @@ import mujoco
 import numpy as np
 import pytest
 
-from rmuc2026_mujoco.query import HeightFieldData
-from rmuc2026_mujoco.slope_routes import screen_slope_route, select_slope_route
-from rmuc2026_mujoco.slope_runtime import reset_slope_spawn
+from rmuc_mujoco.query import HeightFieldData
+from rmuc_mujoco.slope_routes import screen_slope_route, select_slope_route
+from rmuc_mujoco.slope_runtime import reset_slope_spawn
 
 
 def slope_field():

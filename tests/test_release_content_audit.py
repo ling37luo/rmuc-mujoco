@@ -45,8 +45,8 @@ def test_accepts_code_only_wheel_and_sdist(tmp_path: Path, audit_module: ModuleT
     wheel = _wheel(
         tmp_path / "safe.whl",
         {
-            "rmuc2026_mujoco/__init__.py": b"from .manifest import FieldAsset\n",
-            "rmuc2026_mujoco-0.1.dist-info/METADATA": b"Summary: standalone from RL-Lab\n",
+            "rmuc_mujoco/__init__.py": b"from .manifest import FieldAsset\n",
+            "rmuc_mujoco-0.1.dist-info/METADATA": b"Summary: standalone from RL-Lab\n",
         },
     )
     sdist = _sdist(tmp_path / "safe.tar.gz", tmp_path / "module.py", "safe/module.py")
@@ -124,7 +124,7 @@ def test_allows_only_hash_pinned_original_xml_example(
     tmp_path: Path, audit_module: ModuleType
 ) -> None:
     example = Path(__file__).parents[1] / "examples" / "simple_robot.xml"
-    member = "rmuc2026_mujoco-0.1/examples/simple_robot.xml"
+    member = "rmuc_mujoco-0.1/examples/simple_robot.xml"
     safe = _wheel(tmp_path / "safe.whl", {member: example.read_bytes()})
     tampered = _wheel(
         tmp_path / "tampered.whl",

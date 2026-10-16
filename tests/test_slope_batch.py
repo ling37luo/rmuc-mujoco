@@ -4,10 +4,10 @@ from types import SimpleNamespace
 import numpy as np
 import pytest
 
-from rmuc2026_mujoco import FieldAsset, run_slope_batch, run_slope_episode
-from rmuc2026_mujoco.cli import build_parser, main
-from rmuc2026_mujoco.query import height_at
-from rmuc2026_mujoco.slope_batch import slope_cases
+from rmuc_mujoco import FieldAsset, run_slope_batch, run_slope_episode
+from rmuc_mujoco.cli import build_parser, main
+from rmuc_mujoco.query import height_at
+from rmuc_mujoco.slope_batch import slope_cases
 
 
 def catalog():
@@ -111,8 +111,8 @@ def test_real_mujoco_batch_reuses_model_with_independent_resets(
         "heading_yaw_rad": 0,
     }
     tiny_catalog = {"patches": [{"patch_id": "synthetic", "route": route}]}
-    monkeypatch.setattr("rmuc2026_mujoco.slope_runtime.slope_catalog", lambda _: tiny_catalog)
-    monkeypatch.setattr("rmuc2026_mujoco.slope_batch.slope_catalog", lambda _: tiny_catalog)
+    monkeypatch.setattr("rmuc_mujoco.slope_runtime.slope_catalog", lambda _: tiny_catalog)
+    monkeypatch.setattr("rmuc_mujoco.slope_batch.slope_catalog", lambda _: tiny_catalog)
     result = run_slope_batch(
         field, speeds=[0.3], repeats=2, duration_s=0.04, trajectory_dir=tmp_path / "trajectories"
     )
@@ -140,7 +140,7 @@ def test_cli_dispatches_automatic_matrix_and_saves_full_report(monkeypatch, tmp_
         calls.append(kwargs)
         return {"status": "PASS", "episodes": [{"outcome": "PASS"}]}
 
-    monkeypatch.setattr("rmuc2026_mujoco.slope_batch.run_slope_batch", run)
+    monkeypatch.setattr("rmuc_mujoco.slope_batch.run_slope_batch", run)
     assert (
         main(["run", "pack", "--scenario", "slope_basic", "--workers", "2", "--repeats", "3"]) == 0
     )

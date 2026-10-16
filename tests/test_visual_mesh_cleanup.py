@@ -5,7 +5,7 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from rmuc2026_mujoco._conversion import _clean_visual_mesh, _simplify_parts_then_group
+from rmuc_mujoco._conversion import _clean_visual_mesh, _simplify_parts_then_group
 
 trimesh = pytest.importorskip("trimesh")
 

@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-import rmuc2026_mujoco.download as download
+import rmuc_mujoco.download as download
 
 
 def _fixture_bytes() -> bytes:

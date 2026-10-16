@@ -8,7 +8,7 @@ parameter, or height sample is changed.
 
 Run the complete 12-trial matrix with::
 
-    python -m rmuc2026_mujoco.wheel_probe PACK --output wheel-probe.json
+    python -m rmuc_mujoco.wheel_probe PACK --output wheel-probe.json
 """
 
 from __future__ import annotations
@@ -768,7 +768,7 @@ def _mujoco() -> Any:
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        prog="python -m rmuc2026_mujoco.wheel_probe",
+        prog="python -m rmuc_mujoco.wheel_probe",
         description="Run the fixed-fly-ramp 120 mm wheel dynamics matrix.",
     )
     parser.add_argument("pack", type=Path, help="validated RMUC 2026 runtime-pack directory")

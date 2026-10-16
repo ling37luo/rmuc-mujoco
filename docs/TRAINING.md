@@ -13,7 +13,7 @@ the environment is activated, and the working directory is the repository root.
 Measure your completed pack with the included rover; no policy or CAD source is needed:
 
 ```bash
-OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 rmuc2026-field benchmark PACK \
+OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 rmuc-field benchmark PACK \
   --env-counts 1 4 16 --workers 1 4 --steps 2000 --repeats 3 \
   --output runs/performance.json
 ```
@@ -31,7 +31,7 @@ not a universal training-capacity claim.
 For a visible 1280×720 frame workload, on a desktop with OpenGL:
 
 ```bash
-rmuc2026-field benchmark-view PACK --frames 240 --repeats 3 \
+rmuc-field benchmark-view PACK --frames 240 --repeats 3 \
   --screenshots runs/performance-views --output runs/performance-view.json
 ```
 
@@ -52,7 +52,7 @@ Retain the CAD intermediates when building with
 `--keep-source-build ./runs/field-source`. Then run:
 
 ```bash
-rmuc2026-field check ./runs/field-contacts \
+rmuc-field check ./runs/field-contacts \
   --source-manifest ./runs/field-source/manifest.json \
   --output ./runs/field-check.json
 ```
@@ -68,9 +68,9 @@ profiles are compared. Add `--profiles collision_only --speeds 0.5` for a shorte
 Starting from the quick-start fenced pack and its retained source build:
 
 ```bash
-rmuc2026-field lite-pack ./runs/field-fenced ./runs/field-lite \
+rmuc-field lite-pack ./runs/field-fenced ./runs/field-lite \
   --interactive-lite-faces 600000
-rmuc2026-field source-wall-pack ./runs/field-source ./runs/field-lite ./runs/field-contacts
+rmuc-field source-wall-pack ./runs/field-source ./runs/field-lite ./runs/field-contacts
 ```
 
 The suite also accepts other packs. Missing fence/wall layers are reported as
@@ -89,7 +89,7 @@ Retain the source build with `setup --keep-source-build ./runs/field-source`,
 then check a pack that includes the perimeter proxy:
 
 ```bash
-rmuc2026-field perimeter-check ./local-rmuc2026-field \
+rmuc-field perimeter-check ./local-rmuc2026-field \
   --source-manifest ./runs/field-source/manifest.json --output ./runs/perimeter.json
 ```
 
@@ -115,7 +115,7 @@ source/runtime support differences. Passing does not make the corner empty.
 For a pack with source-derived wall collision, run:
 
 ```bash
-rmuc2026-field wall-check ./local-rmuc2026-field \
+rmuc-field wall-check ./local-rmuc2026-field \
   --source-manifest ./runs/field-source/manifest.json --output ./runs/walls.json
 ```
 
@@ -134,12 +134,12 @@ When building a 1 cm pack, add `--keep-source-build ./runs/field-source` to
 normal build removes it after exporting the runtime pack.
 
 ```bash
-rmuc2026-field stairs-check ./local-rmuc2026-field \
+rmuc-field stairs-check ./local-rmuc2026-field \
   --source-manifest ./runs/field-source/manifest.json --output ./runs/stairs.json
-rmuc2026-field run ./local-rmuc2026-field --scenario stairs_basic \
+rmuc-field run ./local-rmuc2026-field --scenario stairs_basic \
   --route-catalog ./runs/stairs.json --directions uphill downhill roundtrip \
   --speeds 0.3 0.5 1.0 --workers 2
-rmuc2026-field view ./local-rmuc2026-field --scenario stairs_basic \
+rmuc-field view ./local-rmuc2026-field --scenario stairs_basic \
   --route-catalog ./runs/stairs.json --direction downhill --control policy
 ```
 
@@ -164,8 +164,8 @@ steps; compound stairs, adjacent walls and multilevel structures are not certifi
 Inspect the available routes, then run the included four-wheel rover:
 
 ```bash
-rmuc2026-field slope-catalog ./local-rmuc2026-field
-rmuc2026-field run ./local-rmuc2026-field --scenario slope_basic \
+rmuc-field slope-catalog ./local-rmuc2026-field
+rmuc-field run ./local-rmuc2026-field --scenario slope_basic \
   --directions uphill downhill roundtrip --speeds 0.3 0.5 \
   --repeats 2 --workers 2
 ```
@@ -183,7 +183,7 @@ routes depend on the pack. `--patches ID...` selects catalog routes.
 Watch the automatic example on a selected route:
 
 ```bash
-rmuc2026-field view ./local-rmuc2026-field \
+rmuc-field view ./local-rmuc2026-field \
   --scenario slope_basic --control policy --direction roundtrip --profile full
 ```
 
@@ -195,9 +195,9 @@ not count as a roundtrip. Batch reports retain each leg, failure and timeout.
 Run both ramps or select `fly_ramp_north` / `fly_ramp_south`:
 
 ```bash
-rmuc2026-field run ./local-rmuc2026-field --scenario fly_ramp \
+rmuc-field run ./local-rmuc2026-field --scenario fly_ramp \
   --speeds 1.5 2.0 2.5 --repeats 2 --workers 2
-rmuc2026-field view ./local-rmuc2026-field \
+rmuc-field view ./local-rmuc2026-field \
   --scenario fly_ramp_north --control policy --profile full --camera spawn
 ```
 
@@ -234,7 +234,7 @@ The template writes zero actions and is not a turning controller by itself.
 After providing your `robot.xml` and `turn_controller.py`:
 
 ```bash
-rmuc2026-field run ./local-rmuc2026-field \
+rmuc-field run ./local-rmuc2026-field \
   --robot ./robot.xml --controller ./turn_controller.py:make \
   --scenario turn_basic --phase spin --workers 2 --envs-per-worker 2 \
   --duration 8 --seed 42 --telemetry runs/turn-spin.json
@@ -271,11 +271,11 @@ to include both terrain and perimeter contact in the optional PhysX probe.
 Export the two ramps separately:
 
 ```bash
-rmuc2026-field training-region ./runs/field-fenced ./runs/fly-regions/north \
+rmuc-field training-region ./runs/field-fenced ./runs/fly-regions/north \
   --scenario fly_ramp_north --approach-distance 0.9
-rmuc2026-field training-region ./runs/field-fenced ./runs/fly-regions/south \
+rmuc-field training-region ./runs/field-fenced ./runs/fly-regions/south \
   --scenario fly_ramp_south --approach-distance 0.9
-rmuc2026-field run ./runs/fly-regions/north --scenario fly_ramp_north \
+rmuc-field run ./runs/fly-regions/north --scenario fly_ramp_north \
   --speeds 2.0 --workers 2 --footprint-radius 0.35
 ```
 

@@ -99,9 +99,7 @@ def export_interactive_lite_pack(
     try:
         import trimesh
     except ImportError as exc:
-        raise ExportBlocked(
-            "lite-pack needs the build extra: install rmuc2026-mujoco[build]"
-        ) from exc
+        raise ExportBlocked("lite-pack needs the build extra: install rmuc-mujoco[build]") from exc
 
     source_visuals = list(source.visual_meshes)
     meshes = [

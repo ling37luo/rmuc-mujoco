@@ -17,7 +17,7 @@ from the repository root using its activated Python environment:
 
 ```python
 from pathlib import Path
-from rmuc2026_mujoco import (
+from rmuc_mujoco import (
     export_isaac_training_region,
     load_isaac_training_region_export,
 )

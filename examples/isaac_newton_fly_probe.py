@@ -24,10 +24,10 @@ import warnings
 
 import numpy as np
 
-from rmuc2026_mujoco.manifest import FieldAsset, sha256_file
-from rmuc2026_mujoco.query import HeightFieldData, load_heightfield
-from rmuc2026_mujoco.scenarios import scenario_descriptor
-from rmuc2026_mujoco.training_region import TrainingRegion
+from rmuc_mujoco.manifest import FieldAsset, sha256_file
+from rmuc_mujoco.query import HeightFieldData, load_heightfield
+from rmuc_mujoco.scenarios import scenario_descriptor
+from rmuc_mujoco.training_region import TrainingRegion
 
 
 PROBE_RADIUS_M = 0.06

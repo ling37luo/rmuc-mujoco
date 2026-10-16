@@ -9,14 +9,14 @@ import xml.etree.ElementTree as ET
 import numpy as np
 import pytest
 
-from rmuc2026_mujoco import AssetIntegrityError, FieldAsset, ManifestError, load_model
-from rmuc2026_mujoco.cli import main
-from rmuc2026_mujoco.collision_candidate import SOURCE_GLB_SHA256
-from rmuc2026_mujoco.lite_profile import export_interactive_lite_pack
-from rmuc2026_mujoco.manifest import sha256_file
-from rmuc2026_mujoco.pack import export_runtime_asset_pack
-from rmuc2026_mujoco.query import HeightFieldData, load_heightfield
-from rmuc2026_mujoco import source_contact_pack
+from rmuc_mujoco import AssetIntegrityError, FieldAsset, ManifestError, load_model
+from rmuc_mujoco.cli import main
+from rmuc_mujoco.collision_candidate import SOURCE_GLB_SHA256
+from rmuc_mujoco.lite_profile import export_interactive_lite_pack
+from rmuc_mujoco.manifest import sha256_file
+from rmuc_mujoco.pack import export_runtime_asset_pack
+from rmuc_mujoco.query import HeightFieldData, load_heightfield
+from rmuc_mujoco import source_contact_pack
 from test_pack_profiles import _synthetic_source_build
 
 

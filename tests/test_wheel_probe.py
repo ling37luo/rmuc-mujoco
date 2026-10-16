@@ -7,9 +7,9 @@ import mujoco
 import numpy as np
 import pytest
 
-from rmuc2026_mujoco import FieldAsset, MujocoModelError
-from rmuc2026_mujoco.ramp_audit import FIXED_FLY_RAMPS, FlyRampGeometry
-from rmuc2026_mujoco.wheel_probe import (
+from rmuc_mujoco import FieldAsset, MujocoModelError
+from rmuc_mujoco.ramp_audit import FIXED_FLY_RAMPS, FlyRampGeometry
+from rmuc_mujoco.wheel_probe import (
     PROBE_BODY_NAME,
     PROBE_PATH_JOINT_NAME,
     PROBE_SPIN_JOINT_NAME,
@@ -173,8 +173,8 @@ def test_full_matrix_covers_twelve_trials_and_writes_json(
             "checks": {"finite_state": True, "finite_contact_forces": True},
         }
 
-    monkeypatch.setattr("rmuc2026_mujoco.wheel_probe.build_wheel_probe_model", fake_build)
-    monkeypatch.setattr("rmuc2026_mujoco.wheel_probe.run_wheel_probe_trial", fake_trial)
+    monkeypatch.setattr("rmuc_mujoco.wheel_probe.build_wheel_probe_model", fake_build)
+    monkeypatch.setattr("rmuc_mujoco.wheel_probe.run_wheel_probe_trial", fake_trial)
     output = tmp_path / "wheel-probe.json"
 
     result = run_fixed_fly_ramp_wheel_probe(asset, output_path=output)

@@ -5,7 +5,7 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from rmuc2026_mujoco import (
+from rmuc_mujoco import (
     FieldAsset,
     MuJoCoScenario,
     get_scenario,
@@ -84,7 +84,7 @@ def test_isaac_fly_ramp_descriptor_keeps_pack_identity_and_spawn(
         assert selected == scenario_id
         return route
 
-    monkeypatch.setattr("rmuc2026_mujoco.fly_routes.fly_route_descriptor", fake_route)
+    monkeypatch.setattr("rmuc_mujoco.fly_routes.fly_route_descriptor", fake_route)
     data = load_isaac_heightfield(field, scenario=scenario_id)
     payload = data.to_dict()
     assert payload["scenario"]["profile_hash"] == expected["profile_hash"]

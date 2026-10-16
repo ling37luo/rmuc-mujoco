@@ -5,7 +5,7 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from rmuc2026_mujoco.livery import (
+from rmuc_mujoco.livery import (
     LiveryProcessingError,
     extract_ground_marking_overlay,
     mask_rulebook_page_edge,

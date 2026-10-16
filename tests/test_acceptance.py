@@ -6,8 +6,8 @@ from pathlib import Path
 import mujoco
 import pytest
 
-from rmuc2026_mujoco import FieldAsset, compose_with_robot
-from rmuc2026_mujoco.acceptance import _pair_name, _validate_routes, run_acceptance
+from rmuc_mujoco import FieldAsset, compose_with_robot
+from rmuc_mujoco.acceptance import _pair_name, _validate_routes, run_acceptance
 
 
 def test_headless_profile_benchmark_keeps_contacts_and_state_parity(

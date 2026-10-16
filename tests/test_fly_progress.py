@@ -1,6 +1,6 @@
 import pytest
 
-from rmuc2026_mujoco.fly_progress import FlyRampProgress
+from rmuc_mujoco.fly_progress import FlyRampProgress
 
 
 ROUTE = {

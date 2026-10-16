@@ -8,13 +8,13 @@ from pathlib import Path
 import pytest
 import trimesh
 
-from rmuc2026_mujoco.boundary_audit import (
+from rmuc_mujoco.boundary_audit import (
     BoundaryAuditError,
     audit_source_boundaries,
     audit_triangle_bounds,
 )
-from rmuc2026_mujoco.download import OFFICIAL_STEP_SHA256
-from rmuc2026_mujoco.manifest import sha256_file
+from rmuc_mujoco.download import OFFICIAL_STEP_SHA256
+from rmuc_mujoco.manifest import sha256_file
 
 
 def _panel(y_center: float, y_width: float) -> trimesh.Trimesh:

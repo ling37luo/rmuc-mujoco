@@ -5,7 +5,7 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-from rmuc2026_mujoco import FieldAsset, FieldBoundaryGuard, ManifestError
+from rmuc_mujoco import FieldAsset, FieldBoundaryGuard, ManifestError
 
 
 def _guard() -> FieldBoundaryGuard:

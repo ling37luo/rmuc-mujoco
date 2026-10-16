@@ -1,4 +1,4 @@
-"""Public exceptions raised by :mod:`rmuc2026_mujoco`."""
+"""Public exceptions raised by :mod:`rmuc_mujoco`."""
 
 
 class Rmuc2026Error(RuntimeError):

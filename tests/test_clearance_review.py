@@ -7,14 +7,14 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from rmuc2026_mujoco.clearance_review import (
+from rmuc_mujoco.clearance_review import (
     ClearanceReviewError,
     _bound_file,
     _coordinate_contract,
     review_entry_mask,
     review_samples,
 )
-from rmuc2026_mujoco.query import HeightFieldData
+from rmuc_mujoco.query import HeightFieldData
 
 
 def test_current_heightfield_seal_is_recomputed_from_its_own_grid() -> None:

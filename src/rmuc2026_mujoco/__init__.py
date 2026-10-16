@@ -1,234 +1,75 @@
-"""Public API for the standalone, unofficial RMUC 2026 MuJoCo field loader."""
+"""Deprecated 1.x import name for :mod:`rmuc_mujoco`.
 
-from .builder import BuilderUnavailable, build_from_official_step, build_runtime_asset_pack
-from .boundary_guard import FieldBoundaryGuard
-from .download import (
-    LAST_REVIEWED_RULEBOOK_PUBLICATION_DATE,
-    LAST_REVIEWED_RULEBOOK_SHA256,
-    LAST_REVIEWED_RULEBOOK_SIZE,
-    LAST_REVIEWED_RULEBOOK_URL,
-    LAST_REVIEWED_RULEBOOK_VERSION,
-    LAST_RULE_REVIEW_DATE,
-    OFFICIAL_RULE_CENTRE,
-    OFFICIAL_SOURCE_PAGE,
-    OFFICIAL_STEP_PRODUCT,
-    OFFICIAL_STEP_SHA256,
-    OFFICIAL_STEP_SIZE,
-    OFFICIAL_STEP_URL,
-    DownloadedStep,
-    DownloadError,
-    download_official_step,
-    verify_official_step,
-)
-from .display import FieldDisplayController
-from .control import ControlCallback, NoOpController, load_controller
-from .energy_unit import add_energy_unit, load_field_with_energy_unit
-from .errors import (
-    AssetIntegrityError,
-    ManifestError,
-    MujocoModelError,
-    OutOfBoundsError,
-    Rmuc2026Error,
-)
-from .fly_batch import fly_cases, run_fly_batch, run_fly_episode
-from .fly_progress import FlyRampProgress
-from .fly_routes import fly_route_descriptor
-from .fly_runtime import FlyRampSession
-from .manifest import (
-    DEFAULT_RUNTIME_PROFILE,
-    RUNTIME_ARTIFACT_TYPE,
-    RUNTIME_PROFILE_NAMES,
-    FieldAsset,
-    ValidationReport,
-    verify_asset,
-)
-from .lite_profile import export_interactive_lite_pack
-from .jump_probe import (
-    JumpProbeConfig,
-    LandingProfile,
-    measure_runtime_landing_profile,
-    run_fixed_fly_ramp_jump_probe,
-)
-from .mjcf import (
-    FIELD_ATTACH_PREFIX,
-    FIELD_COLLISION_GEOM_NAME,
-    HFIELD_NAME,
-    UNOFFICIAL_FRICTION_PRESETS,
-    apply_friction_preset,
-    compose_with_robot,
-    inject_exact_heightfield,
-    load_model,
-)
-from .isaac import (
-    IsaacHeightfieldInput,
-    export_isaac_training_region,
-    load_isaac_heightfield,
-    load_isaac_training_region,
-    load_isaac_training_region_export,
-)
-from .perimeter_fence import export_fenced_pack, perimeter_fence_contract
-from .query import (
-    HEIGHTFIELD_CLAIM_BOUNDARY,
-    MAX_SPAWN_CANDIDATES,
-    HeightFieldData,
-    SpawnCandidate,
-    SurfaceSample,
-    field_bounds,
-    find_spawn_candidates,
-    height_at,
-    load_heightfield,
-    surface_at,
-)
-from .ramp_source_audit import audit_fly_ramp_source_overlap
-from .scenarios import SCENARIOS, ScenarioSpec, get_scenario, list_scenarios, scenario_descriptor
-from .slope_catalog import (
-    FLY_RAMP_SCENARIOS,
-    ORDINARY_SLOPE_BANDS,
-    SlopeBand,
-    SlopePatch,
-    catalog_slope_patches,
-    slope_catalog,
-)
-from .slope_routes import screen_slope_route, select_slope_route
-from .slope_runtime import SlopeSession, reset_slope_spawn
-from .slope_batch import run_slope_batch, run_slope_episode
-from .training import MuJoCoScenario, StepResult, TelemetryRecorder
-from .training_region import (
-    TrainingRegion,
-    compose_training_region_with_robot,
-    export_training_region,
-    load_training_region_model,
-)
-from .turning import (
-    NoOpTurnController,
-    TurnCommand,
-    TurnController,
-    TurnEpisodeResult,
-    TurnPhase,
-    TurnSpawn,
-    load_turn_controller,
-    reset_turn_spawn,
-    run_turn_batch,
-    run_turn_episode,
-    screen_turn_spawns,
-    turn_phase,
-    turn_phase_registry,
-    turn_spawn_manifest,
-)
+``rmuc2026_mujoco`` and every ``rmuc2026_mujoco.<module>`` resolve to the same
+module objects as the renamed package, so ``isinstance`` checks, monkeypatching
+and ``python -m rmuc2026_mujoco.<module>`` keep working.  New code should import
+``rmuc_mujoco``; this alias will be removed in a later major release.
+"""
 
-__all__ = [
-    "AssetIntegrityError",
-    "BuilderUnavailable",
-    "DownloadedStep",
-    "DownloadError",
-    "DEFAULT_RUNTIME_PROFILE",
-    "FIELD_ATTACH_PREFIX",
-    "FIELD_COLLISION_GEOM_NAME",
-    "FieldAsset",
-    "FieldBoundaryGuard",
-    "FieldDisplayController",
-    "export_interactive_lite_pack",
-    "ControlCallback",
-    "NoOpController",
-    "HEIGHTFIELD_CLAIM_BOUNDARY",
-    "HFIELD_NAME",
-    "HeightFieldData",
-    "IsaacHeightfieldInput",
-    "LAST_REVIEWED_RULEBOOK_PUBLICATION_DATE",
-    "LAST_REVIEWED_RULEBOOK_SHA256",
-    "LAST_REVIEWED_RULEBOOK_SIZE",
-    "LAST_REVIEWED_RULEBOOK_URL",
-    "LAST_REVIEWED_RULEBOOK_VERSION",
-    "LAST_RULE_REVIEW_DATE",
-    "JumpProbeConfig",
-    "LandingProfile",
-    "ManifestError",
-    "MAX_SPAWN_CANDIDATES",
-    "MujocoModelError",
-    "OFFICIAL_SOURCE_PAGE",
-    "OFFICIAL_RULE_CENTRE",
-    "OFFICIAL_STEP_PRODUCT",
-    "OFFICIAL_STEP_SHA256",
-    "OFFICIAL_STEP_SIZE",
-    "OFFICIAL_STEP_URL",
-    "OutOfBoundsError",
-    "RUNTIME_ARTIFACT_TYPE",
-    "RUNTIME_PROFILE_NAMES",
-    "Rmuc2026Error",
-    "MuJoCoScenario",
-    "SCENARIOS",
-    "ScenarioSpec",
-    "FLY_RAMP_SCENARIOS",
-    "FlyRampProgress",
-    "FlyRampSession",
-    "ORDINARY_SLOPE_BANDS",
-    "SlopeBand",
-    "SlopePatch",
-    "SlopeSession",
-    "run_slope_batch",
-    "run_slope_episode",
-    "SpawnCandidate",
-    "StepResult",
-    "SurfaceSample",
-    "ValidationReport",
-    "UNOFFICIAL_FRICTION_PRESETS",
-    "TelemetryRecorder",
-    "TrainingRegion",
-    "apply_friction_preset",
-    "audit_fly_ramp_source_overlap",
-    "add_energy_unit",
-    "build_from_official_step",
-    "build_runtime_asset_pack",
-    "compose_with_robot",
-    "compose_training_region_with_robot",
-    "download_official_step",
-    "field_bounds",
-    "fly_cases",
-    "fly_route_descriptor",
-    "export_fenced_pack",
-    "export_training_region",
-    "export_isaac_training_region",
-    "find_spawn_candidates",
-    "height_at",
-    "inject_exact_heightfield",
-    "load_heightfield",
-    "load_field_with_energy_unit",
-    "load_model",
-    "load_training_region_model",
-    "load_controller",
-    "load_turn_controller",
-    "load_isaac_heightfield",
-    "load_isaac_training_region",
-    "load_isaac_training_region_export",
-    "get_scenario",
-    "list_scenarios",
-    "measure_runtime_landing_profile",
-    "perimeter_fence_contract",
-    "run_fixed_fly_ramp_jump_probe",
-    "run_fly_batch",
-    "run_fly_episode",
-    "run_turn_batch",
-    "run_turn_episode",
-    "reset_turn_spawn",
-    "screen_turn_spawns",
-    "surface_at",
-    "scenario_descriptor",
-    "catalog_slope_patches",
-    "slope_catalog",
-    "screen_slope_route",
-    "select_slope_route",
-    "reset_slope_spawn",
-    "NoOpTurnController",
-    "TurnCommand",
-    "TurnController",
-    "TurnEpisodeResult",
-    "TurnPhase",
-    "TurnSpawn",
-    "turn_phase",
-    "turn_phase_registry",
-    "turn_spawn_manifest",
-    "verify_asset",
-    "verify_official_step",
-]
+from __future__ import annotations
 
-__version__ = "1.3.0"
+import importlib
+import importlib.abc
+import importlib.util
+import sys
+from types import ModuleType
+
+import rmuc_mujoco as _target
+from rmuc_mujoco import *  # noqa: F401,F403
+
+__all__ = list(_target.__all__)
+__version__ = _target.__version__
+
+_TARGET = _target.__name__
+_PREFIX = __name__ + "."
+
+# Old flat module names whose code now lives elsewhere in ``rmuc_mujoco``.
+_MOVED: dict[str, str] = {}
+
+
+def _target_name(fullname: str) -> str:
+    tail = fullname[len(_PREFIX) :]
+    head, _, rest = tail.partition(".")
+    moved = _MOVED.get(head)
+    if moved is None:
+        return f"{_TARGET}.{tail}"
+    return f"{moved}.{rest}" if rest else moved
+
+
+class _AliasLoader(importlib.abc.Loader):
+    """Bind an old module name to the already-imported new module object."""
+
+    def __init__(self, target: str) -> None:
+        self._target = target
+
+    def create_module(self, spec: importlib.machinery.ModuleSpec) -> ModuleType:
+        return importlib.import_module(self._target)
+
+    def exec_module(self, module: ModuleType) -> None:
+        pass
+
+    # ``runpy`` (``python -m``) executes the target's code under the old name.
+    def get_code(self, fullname: str):
+        spec = importlib.util.find_spec(self._target)
+        return spec.loader.get_code(self._target)
+
+
+class _AliasFinder(importlib.abc.MetaPathFinder):
+    def find_spec(self, fullname, path=None, target=None):
+        if not fullname.startswith(_PREFIX):
+            return None
+        name = _target_name(fullname)
+        target_spec = importlib.util.find_spec(name)
+        if target_spec is None:
+            return None
+        # ``runpy`` reports ``origin`` as ``sys.argv[0]``.
+        return importlib.util.spec_from_loader(
+            fullname,
+            _AliasLoader(name),
+            origin=target_spec.origin,
+            is_package=target_spec.submodule_search_locations is not None,
+        )
+
+
+if not any(isinstance(finder, _AliasFinder) for finder in sys.meta_path):
+    sys.meta_path.insert(0, _AliasFinder())

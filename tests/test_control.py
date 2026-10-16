@@ -1,6 +1,6 @@
 from types import SimpleNamespace
 
-from rmuc2026_mujoco import control
+from rmuc_mujoco import control
 
 
 def test_controller_factory_receives_selected_field_asset(monkeypatch):

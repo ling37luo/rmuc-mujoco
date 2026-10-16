@@ -9,7 +9,7 @@ import time
 import mujoco
 import mujoco.viewer
 
-from rmuc2026_mujoco import FieldAsset, compose_with_robot
+from rmuc_mujoco import FieldAsset, compose_with_robot
 
 
 def main() -> None:

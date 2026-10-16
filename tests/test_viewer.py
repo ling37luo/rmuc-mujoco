@@ -5,8 +5,8 @@ from types import SimpleNamespace
 
 import pytest
 
-import rmuc2026_mujoco.viewer as viewer_module
-from rmuc2026_mujoco.viewer import (
+import rmuc_mujoco.viewer as viewer_module
+from rmuc_mujoco.viewer import (
     ForegroundWindow,
     SafePassiveViewerSession,
     ViewerFocusGuard,

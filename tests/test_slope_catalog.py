@@ -3,7 +3,7 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-from rmuc2026_mujoco import HeightFieldData, catalog_slope_patches, get_scenario
+from rmuc_mujoco import HeightFieldData, catalog_slope_patches, get_scenario
 
 
 def test_ordinary_slope_catalog_fits_a_planar_traversal_patch() -> None:

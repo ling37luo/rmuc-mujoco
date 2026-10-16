@@ -31,7 +31,7 @@ def build_from_official_step(
         from ._conversion import build_field
     except ImportError as exc:  # pragma: no cover - depends on optional wheels
         raise BuilderUnavailable(
-            "CAD builder dependencies are missing; install rmuc2026-mujoco[build]"
+            "CAD builder dependencies are missing; install rmuc-mujoco[build]"
         ) from exc
 
     return build_field(
