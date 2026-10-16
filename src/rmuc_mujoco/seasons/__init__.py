@@ -51,6 +51,9 @@ class FieldSource:
     step: OfficialFile
     step_product: str
     source_page: str
+    # Visual mesh groups a correct conversion of this STEP produces; the pack
+    # exporter rejects a source build with any other count.
+    visual_mesh_count: int
 
 
 @dataclass(frozen=True)

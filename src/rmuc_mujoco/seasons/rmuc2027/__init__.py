@@ -22,6 +22,8 @@ STEP_V1_0_0 = FieldSource(
     ),
     step_product="00_RMUC20270001_ASM",
     source_page="https://bbs.robomaster.com/article/1970956",
+    # Measured from the first local V1.0.0 build (2026-10-16).
+    visual_mesh_count=41,
 )
 
 SEASON = Season(

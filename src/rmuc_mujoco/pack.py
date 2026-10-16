@@ -26,6 +26,7 @@ from .wall_tip_repair import validate_wall_tip_repair_record
 
 
 EXPECTED_ARTIFACT_TYPE = "rmuc2026_official_field_mujoco_asset"
+# The RMUC 2026 value; each registered STEP release pins its own count.
 EXPECTED_VISUAL_MESH_COUNT = 38
 OUTPUT_ARTIFACT_TYPE = "rmuc2026_mujoco_runtime_asset_pack"
 OUTPUT_XML = "rmuc2026_field.xml"
@@ -877,10 +878,15 @@ def _load_source_contract(field_build: Path) -> tuple[Path, Path, dict[str, Any]
     scope = _json_object(manifest.get("validation_scope"), "validation_scope")
     if scope.get("status") != "DRAFT_BLOCKED":
         raise ExportBlocked("本导出器要求显式保留当前DRAFT_BLOCKED验证边界")
+    source = _json_object(manifest.get("source"), "source")
+    field_source = source_for_step(source.get("sha256"), source.get("size_bytes"))
+    if field_source is None:
+        raise ExportBlocked("源场地未绑定已登记赛季的官方STEP")
+    expected = field_source.visual_mesh_count
     visual = manifest.get("visual_meshes")
-    if not isinstance(visual, list) or len(visual) != EXPECTED_VISUAL_MESH_COUNT:
+    if not isinstance(visual, list) or len(visual) != expected:
         raise ExportBlocked(
-            f"视觉网格必须恰好为{EXPECTED_VISUAL_MESH_COUNT}个，实际={len(visual) if isinstance(visual, list) else 'invalid'}"
+            f"视觉网格必须恰好为{expected}个，实际={len(visual) if isinstance(visual, list) else 'invalid'}"
         )
     return field_root, manifest_path, manifest
 
