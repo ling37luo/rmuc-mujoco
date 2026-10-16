@@ -18,14 +18,14 @@ from .perimeter_check import (
     screen_support,
 )
 from .query import load_heightfield
-from .ramp_source_audit import _verified_glb
+from .source_build import verified_source_glb
 from .stairs import _source_top
 from .wall_tip_repair import _projected_top
-from .wheel_probe import _sample_mujoco_heightfield
+from .query import sample_mujoco_heightfield
 
 
 def _height(grid, xy):
-    return _sample_mujoco_heightfield(grid, xy[..., 0], xy[..., 1])
+    return sample_mujoco_heightfield(grid, xy[..., 0], xy[..., 1])
 
 
 def _surface_triangles(mesh, reference_vertices):
@@ -71,7 +71,7 @@ def build_wall_catalog(asset, source_manifest):
     layer = asset.collision.get("source_contact_layer")
     if layer is None:
         raise ValueError("wall-check requires a pack with source wall collision")
-    glb, shift, source_hash = _verified_glb(Path(source_manifest))
+    glb, shift, source_hash = verified_source_glb(Path(source_manifest))
     meshes = list(trimesh.load(glb, force="scene", process=False).dump(concatenate=False))
     spawn = asset.recommended_spawn
     translation = np.array(

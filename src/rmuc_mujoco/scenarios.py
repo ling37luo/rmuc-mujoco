@@ -1,9 +1,9 @@
 """Small, robot-agnostic RMUC field scenario registry.
 
 The registry describes *where* a controller should run.  It does not contain
-robot actions or a second copy of field geometry.  Coordinates that come from
-the audited ramp source are kept in :mod:`ramp_audit`; the other scenarios use
-selectors so they remain valid across runtime packs.
+robot actions or a second copy of field geometry.  The core table uses
+selectors so it remains valid across runtime packs and seasons; a season adds
+its own scenarios (for example RMUC 2026 fly ramps) through its scenario table.
 """
 
 from __future__ import annotations
@@ -14,7 +14,7 @@ import json
 from typing import Any, Mapping
 
 from .manifest import FieldAsset
-from .ramp_audit import FIXED_FLY_RAMPS
+from .seasons import DEFAULT_SEASON_ID, Season, get_season
 from .slope_routes import ROUTE_SCREEN
 from .slope_progress import SLOPE_TRAVERSAL_RULE
 
@@ -43,24 +43,7 @@ class ScenarioSpec:
         }
 
 
-def _ramp_route(route: Any) -> dict[str, Any]:
-    return {
-        "route_id": route.route_id,
-        "source_part_index": route.source_part_index,
-        "low_edge_center_xyz_m": list(route.low_edge_center_xyz_m),
-        "high_edge_center_xyz_m": list(route.high_edge_center_xyz_m),
-        "uphill_unit_xy": list(route.uphill_unit_xy),
-        "horizontal_run_m": route.horizontal_run_m,
-        "surface_width_m": route.surface_width_m,
-        "slope_angle_degrees": route.slope_angle_degrees,
-        "cad_low_seam_along_m": route.cad_low_seam_along_m,
-        "cad_high_seam_along_m": route.cad_high_seam_along_m,
-    }
-
-
-_RAMP_NORTH, _RAMP_SOUTH = tuple(_ramp_route(route) for route in FIXED_FLY_RAMPS)
-
-SCENARIOS: Mapping[str, ScenarioSpec] = {
+BASE_SCENARIOS: Mapping[str, ScenarioSpec] = {
     "full_eval": ScenarioSpec(
         "full_eval",
         "full",
@@ -138,7 +121,7 @@ SCENARIOS: Mapping[str, ScenarioSpec] = {
     "slope_basic": ScenarioSpec(
         "slope_basic",
         "collision_only",
-        "ordinary traversable slopes below the dedicated fly ramps",
+        "ordinary traversable slopes",
         {
             "selector": "ordinary_slope_catalog",
             "visual": "omitted",
@@ -146,7 +129,6 @@ SCENARIOS: Mapping[str, ScenarioSpec] = {
             "slope_bands_deg": [[3.0, 6.0], [6.0, 10.0], [10.0, 15.0]],
             "route_length_m": 0.80,
             "usable_width_m": 0.60,
-            "fly_ramps_excluded": ["fly_ramp_north", "fly_ramp_south"],
             "route_screen": dict(ROUTE_SCREEN),
         },
         {
@@ -161,24 +143,6 @@ SCENARIOS: Mapping[str, ScenarioSpec] = {
         (),
         ("human_view", "mujoco", "isaac"),
     ),
-    "fly_ramp_north": ScenarioSpec(
-        "fly_ramp_north",
-        "collision_only",
-        "audited north fly ramp",
-        {"selector": "route", "route_id": _RAMP_NORTH["route_id"], "visual": "omitted"},
-        {"strategy": "route_endpoints", "wheel_diameter_m": 0.12},
-        (_RAMP_NORTH,),
-        ("human_view", "mujoco", "isaac"),
-    ),
-    "fly_ramp_south": ScenarioSpec(
-        "fly_ramp_south",
-        "collision_only",
-        "audited south fly ramp",
-        {"selector": "route", "route_id": _RAMP_SOUTH["route_id"], "visual": "omitted"},
-        {"strategy": "route_endpoints", "wheel_diameter_m": 0.12},
-        (_RAMP_SOUTH,),
-        ("human_view", "mujoco", "isaac"),
-    ),
     "boundary_contact": ScenarioSpec(
         "boundary_contact",
         "collision_only",
@@ -191,16 +155,26 @@ SCENARIOS: Mapping[str, ScenarioSpec] = {
 }
 
 
-def get_scenario(scenario_id: str) -> ScenarioSpec:
+def scenarios_for(season: Season) -> Mapping[str, ScenarioSpec]:
+    """The scenario table offered on fields of ``season``."""
+
+    if season.scenario_table is None:
+        return BASE_SCENARIOS
+    return season.scenario_table()
+
+
+def get_scenario(scenario_id: str, season: Season | None = None) -> ScenarioSpec:
+    table = scenarios_for(season or get_season(DEFAULT_SEASON_ID))
     try:
-        return SCENARIOS[str(scenario_id)]
+        return table[str(scenario_id)]
     except KeyError as exc:
-        choices = ", ".join(SCENARIOS)
+        choices = ", ".join(table)
         raise ValueError(f"unknown scenario {scenario_id!r}; choose one of: {choices}") from exc
 
 
-def list_scenarios() -> list[dict[str, Any]]:
-    return [SCENARIOS[name].to_dict() for name in SCENARIOS]
+def list_scenarios(season: Season | None = None) -> list[dict[str, Any]]:
+    table = scenarios_for(season or get_season(DEFAULT_SEASON_ID))
+    return [spec.to_dict() for spec in table.values()]
 
 
 def scenario_descriptor(
@@ -211,7 +185,7 @@ def scenario_descriptor(
 ) -> dict[str, Any]:
     """Bind a registry entry to one verified pack without changing its files."""
 
-    spec = get_scenario(scenario_id)
+    spec = get_scenario(scenario_id, asset.season)
     selected_profile = profile or spec.profile
     if selected_profile not in asset.available_runtime_profiles:
         raise ValueError(
@@ -270,4 +244,16 @@ def _bounds(asset: FieldAsset) -> list[list[float]]:
     ]
 
 
-__all__ = ["SCENARIOS", "ScenarioSpec", "get_scenario", "list_scenarios", "scenario_descriptor"]
+# The 1.x registry name: the scenario table of the default season.
+SCENARIOS: Mapping[str, ScenarioSpec] = scenarios_for(get_season(DEFAULT_SEASON_ID))
+
+
+__all__ = [
+    "BASE_SCENARIOS",
+    "SCENARIOS",
+    "ScenarioSpec",
+    "get_scenario",
+    "list_scenarios",
+    "scenario_descriptor",
+    "scenarios_for",
+]

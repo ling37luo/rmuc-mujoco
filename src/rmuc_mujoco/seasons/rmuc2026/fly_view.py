@@ -9,9 +9,9 @@ from queue import SimpleQueue
 import threading
 import time
 
-from .display import FieldDisplayController
+from ...display import FieldDisplayController
 from .fly_runtime import FlyRampSession
-from .viewer import SafePassiveViewerSession
+from ...viewer import SafePassiveViewerSession
 
 
 def view_fly(args, asset):
@@ -37,7 +37,7 @@ def view_fly(args, asset):
     else:
         import mujoco.viewer
 
-        from .cli import _configure_camera, _configure_fly_camera, _start_display_key_listener
+        from ...cli import _configure_camera, _configure_fly_camera, _start_display_key_listener
 
         display = FieldDisplayController(asset, lighting=args.lighting, livery=args.livery)
         close = threading.Event()

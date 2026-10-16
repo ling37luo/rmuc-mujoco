@@ -18,9 +18,9 @@ from .acceptance import _compare_trace, _contact_sample, _warning_counts
 from .manifest import FieldAsset, sha256_file
 from .mjcf import HFIELD_NAME, inject_exact_heightfield
 from .query import load_heightfield
-from .ramp_source_audit import _verified_glb
+from .source_build import verified_source_glb
 from .stairs import _source_top
-from .wheel_probe import _sample_mujoco_heightfield
+from .query import sample_mujoco_heightfield
 
 SIDES = (("left", 0, 1), ("right", 0, -1), ("bottom", 1, 1), ("top", 1, -1))
 WHEEL_RADIUS_M = 0.06
@@ -70,7 +70,7 @@ def build_perimeter_catalog(asset, source_manifest):
     fence = field.manifest.get("perimeter_fence")
     if fence is None:
         raise ValueError("perimeter-check requires a pack with a perimeter fence")
-    glb, shift, source_hash = _verified_glb(Path(source_manifest))
+    glb, shift, source_hash = verified_source_glb(Path(source_manifest))
     meshes = list(trimesh.load(glb, force="scene", process=False).dump(concatenate=False))
     spawn = field.recommended_spawn
     translation = np.array(
@@ -96,7 +96,7 @@ def build_perimeter_catalog(asset, source_manifest):
             if np.any(points < grid.bounds_xy_m[0]) or np.any(points > grid.bounds_xy_m[1]):
                 rejected["outside_heightfield"] += 1
                 continue
-            z = _sample_mujoco_heightfield(grid, points[..., 0], points[..., 1])
+            z = sample_mujoco_heightfield(grid, points[..., 0], points[..., 1])
             try:
                 support = screen_support(depth, transverse, z)
                 # Avoid treating elevated facility roofs as driving areas.
@@ -114,7 +114,7 @@ def build_perimeter_catalog(asset, source_manifest):
                 ):
                     continue
                 points[..., 1 - axis] = t + transverse
-                z = _sample_mujoco_heightfield(grid, points[..., 0], points[..., 1])
+                z = sample_mujoco_heightfield(grid, points[..., 0], points[..., 1])
                 source = _source_top(meshes, points.reshape(-1, 2), translation).reshape(z.shape)
                 if not np.isfinite(source).all() or np.max(np.abs(source - z)) > SOURCE_ERROR_M:
                     source_rejected.add(t)
@@ -327,7 +327,7 @@ def run_perimeter_checks(pack, source_manifest, *, profiles=None, speeds=(0.3, 0
         origin, normal, tangent = _route_frame(route)
         start = origin + 0.6 * normal - 0.15 * tangent
         height = float(
-            _sample_mujoco_heightfield(grid, np.array([start[0]]), np.array([start[1]]))[0]
+            sample_mujoco_heightfield(grid, np.array([start[0]]), np.array([start[1]]))[0]
         )
         references = {}
         for profile in selected:

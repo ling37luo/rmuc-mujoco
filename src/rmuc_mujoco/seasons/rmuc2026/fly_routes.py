@@ -11,8 +11,8 @@ import math
 from typing import Any
 
 from .jump_probe import JumpProbeConfig, measure_runtime_landing_profile
-from .manifest import FieldAsset
-from .query import height_at, surface_at
+from ...manifest import FieldAsset
+from ...query import height_at, surface_at
 from .ramp_audit import FIXED_FLY_RAMPS, FlyRampGeometry
 
 

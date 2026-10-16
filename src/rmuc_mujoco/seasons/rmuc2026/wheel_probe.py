@@ -23,10 +23,10 @@ from typing import Any, Literal, Sequence
 
 import numpy as np
 
-from .errors import MujocoModelError
-from .manifest import FieldAsset
-from .mjcf import FIELD_COLLISION_GEOM_NAME, HFIELD_NAME, inject_exact_heightfield
-from .query import HeightFieldData, load_heightfield
+from ...errors import MujocoModelError
+from ...manifest import FieldAsset
+from ...mjcf import FIELD_COLLISION_GEOM_NAME, HFIELD_NAME, inject_exact_heightfield
+from ...query import sample_mujoco_heightfield, load_heightfield
 from .ramp_audit import (
     FIXED_FLY_RAMPS,
     REFERENCE_WHEEL_DIAMETER_M,
@@ -589,43 +589,11 @@ def _build_support_profile(
     low_y = ramp.low_edge_center_xyz_m[1] - float(spawn["y_before_translation_m"])
     source_x = low_x + source_s * ramp.uphill_unit_xy[0]
     source_y = low_y + source_s * ramp.uphill_unit_xy[1]
-    terrain = _sample_mujoco_heightfield(field, source_x, source_y).reshape(
-        len(along), len(offsets)
-    )
+    terrain = sample_mujoco_heightfield(field, source_x, source_y).reshape(len(along), len(offsets))
     center = np.max(terrain + circle[None, :], axis=1)
     if not np.isfinite(center).all():
         raise MujocoModelError(f"non-finite wheel support profile for {ramp.route_id}")
     return WheelSupportProfile(along_m=along, center_height_m=center)
-
-
-def _sample_mujoco_heightfield(
-    field: HeightFieldData,
-    x: np.ndarray,
-    y: np.ndarray,
-) -> np.ndarray:
-    if (
-        np.any(x < field.x_m[0])
-        or np.any(x > field.x_m[-1])
-        or np.any(y < field.y_m[0])
-        or np.any(y > field.y_m[-1])
-    ):
-        raise MujocoModelError("fixed fly-ramp wheel support profile is outside the heightfield")
-    columns = np.clip(np.searchsorted(field.x_m, x, side="left") - 1, 0, len(field.x_m) - 2)
-    rows = np.clip(np.searchsorted(field.y_m, y, side="left") - 1, 0, len(field.y_m) - 2)
-    x0 = field.x_m[columns]
-    y0 = field.y_m[rows]
-    dx = field.x_m[columns + 1] - x0
-    dy = field.y_m[rows + 1] - y0
-    u = (x - x0) / dx
-    v = (y - y0) / dy
-    z00 = field.height_m[rows, columns]
-    z01 = field.height_m[rows, columns + 1]
-    z10 = field.height_m[rows + 1, columns]
-    z11 = field.height_m[rows + 1, columns + 1]
-    lower = v <= u
-    dz_dx = np.where(lower, (z01 - z00) / dx, (z11 - z10) / dx)
-    dz_dy = np.where(lower, (z11 - z01) / dy, (z10 - z00) / dy)
-    return z00 + dz_dx * (x - x0) + dz_dy * (y - y0)
 
 
 def _probe_ids(model: Any) -> _ProbeIds:

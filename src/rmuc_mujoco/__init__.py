@@ -30,10 +30,6 @@ from .errors import (
     OutOfBoundsError,
     Rmuc2026Error,
 )
-from .fly_batch import fly_cases, run_fly_batch, run_fly_episode
-from .fly_progress import FlyRampProgress
-from .fly_routes import fly_route_descriptor
-from .fly_runtime import FlyRampSession
 from .manifest import (
     DEFAULT_RUNTIME_PROFILE,
     RUNTIME_ARTIFACT_TYPE,
@@ -43,12 +39,6 @@ from .manifest import (
     verify_asset,
 )
 from .lite_profile import export_interactive_lite_pack
-from .jump_probe import (
-    JumpProbeConfig,
-    LandingProfile,
-    measure_runtime_landing_profile,
-    run_fixed_fly_ramp_jump_probe,
-)
 from .mjcf import (
     FIELD_ATTACH_PREFIX,
     FIELD_COLLISION_GEOM_NAME,
@@ -79,7 +69,6 @@ from .query import (
     load_heightfield,
     surface_at,
 )
-from .ramp_source_audit import audit_fly_ramp_source_overlap
 from .scenarios import SCENARIOS, ScenarioSpec, get_scenario, list_scenarios, scenario_descriptor
 from .slope_catalog import (
     FLY_RAMP_SCENARIOS,
@@ -232,3 +221,30 @@ __all__ = [
 ]
 
 __version__ = "1.3.0"
+
+# The RMUC 2026 fly-ramp API keeps its 1.x top-level names but now lives in
+# rmuc_mujoco.seasons.rmuc2026; it is imported on first use.
+_RMUC2026_EXPORTS = {
+    "FlyRampProgress": "fly_progress",
+    "FlyRampSession": "fly_runtime",
+    "JumpProbeConfig": "jump_probe",
+    "LandingProfile": "jump_probe",
+    "audit_fly_ramp_source_overlap": "ramp_source_audit",
+    "fly_cases": "fly_batch",
+    "fly_route_descriptor": "fly_routes",
+    "measure_runtime_landing_profile": "jump_probe",
+    "run_fixed_fly_ramp_jump_probe": "jump_probe",
+    "run_fly_batch": "fly_batch",
+    "run_fly_episode": "fly_batch",
+}
+
+
+def __getattr__(name: str):
+    module = _RMUC2026_EXPORTS.get(name)
+    if module is None:
+        raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+    from importlib import import_module
+
+    value = getattr(import_module(f"{__name__}.seasons.rmuc2026.{module}"), name)
+    globals()[name] = value
+    return value

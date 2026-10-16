@@ -5,7 +5,7 @@ import pytest
 
 from rmuc_mujoco import FieldAsset
 from rmuc_mujoco.cli import build_parser, main
-from rmuc_mujoco.fly_batch import fly_cases, run_fly_batch, run_fly_episode
+from rmuc_mujoco.seasons.rmuc2026.fly_batch import fly_cases, run_fly_batch, run_fly_episode
 from rmuc_mujoco.query import height_at
 
 
@@ -113,7 +113,7 @@ def test_cli_dispatches_fly_matrix_and_saves_full_report(monkeypatch, tmp_path, 
         calls.append(kwargs)
         return {"status": "PASS", "task_status": "INCOMPLETE", "episodes": [{"outcome": "FAIL"}]}
 
-    monkeypatch.setattr("rmuc_mujoco.fly_batch.run_fly_batch", run)
+    monkeypatch.setattr("rmuc_mujoco.seasons.rmuc2026.fly_batch.run_fly_batch", run)
     assert main(["run", "pack", "--scenario", "fly_ramp", "--workers", "2"]) == 0
     shown = json.loads(capsys.readouterr().out)
     assert "episodes" not in shown
@@ -141,7 +141,9 @@ def test_real_mujoco_session_reuses_model_and_independent_resets(field_asset_dir
         "heading_yaw_rad": 0.0,
         "surface_width_m": 0.86,
     }
-    monkeypatch.setattr("rmuc_mujoco.fly_runtime.fly_route_descriptor", lambda *_: route)
+    monkeypatch.setattr(
+        "rmuc_mujoco.seasons.rmuc2026.fly_runtime.fly_route_descriptor", lambda *_: route
+    )
     result = run_fly_batch(
         field,
         scenarios=["fly_ramp_north"],
@@ -178,7 +180,9 @@ def test_headless_fly_view_uses_example_session(field_asset_dir, tmp_path, monke
         "heading_yaw_rad": 0.0,
         "surface_width_m": 0.86,
     }
-    monkeypatch.setattr("rmuc_mujoco.fly_runtime.fly_route_descriptor", lambda *_: route)
+    monkeypatch.setattr(
+        "rmuc_mujoco.seasons.rmuc2026.fly_runtime.fly_route_descriptor", lambda *_: route
+    )
     telemetry = tmp_path / "fly-view.json"
     assert (
         main(

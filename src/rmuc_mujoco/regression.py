@@ -14,12 +14,11 @@ import numpy as np
 
 from .acceptance import _contact_sample, _run_route, _warning_counts
 from .corner_check import TraceDigest, run_corner_checks, solver_config
-from .fly_routes import fly_route_descriptor
-from .fly_runtime import FlyRampSession
 from .manifest import FieldAsset
 from .perimeter_check import run_perimeter_checks
 from .query import find_spawn_candidates
 from .scenarios import scenario_descriptor
+from .seasons import FLY_RAMPS
 from .slope_catalog import slope_catalog
 from .slope_demo import RoverController, rover_xml
 from .slope_runtime import SlopeSession
@@ -28,6 +27,10 @@ from .training import MuJoCoScenario
 from .wall_check import run_wall_checks
 
 SUITE_ID = "rmuc2026_static_interaction_v1"
+
+
+def _fly_ramp_scenarios(asset):
+    return ("fly_ramp_north", "fly_ramp_south") if asset.season.has(FLY_RAMPS) else ()
 
 
 def _parity(rows):
@@ -63,7 +66,9 @@ def _surface_routes(asset):
         )
         for p in slopes
     ]
-    for name in ("fly_ramp_north", "fly_ramp_south"):
+    for name in _fly_ramp_scenarios(asset):
+        from .seasons.rmuc2026.fly_routes import fly_route_descriptor
+
         route = fly_route_descriptor(asset, name)
         routes.append(
             dict(
@@ -259,11 +264,14 @@ def check_example_episodes(asset, profiles, slopes, stair_catalog):
                         )
                     )
             del session
-        session = FlyRampSession(asset, profile=profile, speed_mps=2.0, record_trajectory=False)
-        for scenario in ("fly_ramp_north", "fly_ramp_south"):
-            session.reset(scenario_id=scenario, speed_mps=2.0, seed=0)
-            rows.append(_session_episode(session, case_id=f"fly/{scenario}/2.0", timeout_s=8))
-        del session
+        if _fly_ramp_scenarios(asset):
+            from .seasons.rmuc2026.fly_runtime import FlyRampSession
+
+            session = FlyRampSession(asset, profile=profile, speed_mps=2.0, record_trajectory=False)
+            for scenario in _fly_ramp_scenarios(asset):
+                session.reset(scenario_id=scenario, speed_mps=2.0, seed=0)
+                rows.append(_session_episode(session, case_id=f"fly/{scenario}/2.0", timeout_s=8))
+            del session
     parity = _parity(rows)
     return dict(
         status="PASS" if rows and all(r["status"] == "PASS" for r in rows + parity) else "FAIL",

@@ -8,9 +8,9 @@ from types import SimpleNamespace
 import pytest
 
 from rmuc_mujoco.cli import _configure_fly_camera, main
-from rmuc_mujoco.fly_routes import fly_route_descriptor
-from rmuc_mujoco.jump_probe import LandingProfile
-from rmuc_mujoco.ramp_audit import FIXED_FLY_RAMPS
+from rmuc_mujoco.seasons.rmuc2026.fly_routes import fly_route_descriptor
+from rmuc_mujoco.seasons.rmuc2026.jump_probe import LandingProfile
+from rmuc_mujoco.seasons.rmuc2026.ramp_audit import FIXED_FLY_RAMPS
 
 
 @pytest.mark.parametrize("scenario_index", [0, 1])
@@ -23,11 +23,11 @@ def test_fly_route_uses_pack_translation_and_measured_landing(monkeypatch, scena
     )
     landing = LandingProfile(1.18, 1.83, 0.65, -0.01, 0.17)
     monkeypatch.setattr(
-        "rmuc_mujoco.fly_routes.measure_runtime_landing_profile",
+        "rmuc_mujoco.seasons.rmuc2026.fly_routes.measure_runtime_landing_profile",
         lambda _asset, _ramp: landing,
     )
     monkeypatch.setattr(
-        "rmuc_mujoco.fly_routes.surface_at",
+        "rmuc_mujoco.seasons.rmuc2026.fly_routes.surface_at",
         lambda *_args, **_kwargs: SimpleNamespace(
             height_m=0.16,
             maximum_window_slope_deg=2.0,
@@ -35,7 +35,7 @@ def test_fly_route_uses_pack_translation_and_measured_landing(monkeypatch, scena
         ),
     )
     monkeypatch.setattr(
-        "rmuc_mujoco.fly_routes.height_at",
+        "rmuc_mujoco.seasons.rmuc2026.fly_routes.height_at",
         lambda _asset, x, y, **_kwargs: 0.2,
     )
     route = fly_route_descriptor(asset, f"fly_ramp_{'north' if scenario_index == 0 else 'south'}")
@@ -92,7 +92,9 @@ def test_view_places_robot_at_selected_fly_approach(
         "heading_yaw_rad": 0.5,
         "uphill_unit_xy": [math.cos(0.5), math.sin(0.5)],
     }
-    monkeypatch.setattr("rmuc_mujoco.cli.fly_route_descriptor", lambda *_args: route)
+    monkeypatch.setattr(
+        "rmuc_mujoco.seasons.rmuc2026.fly_routes.fly_route_descriptor", lambda *_args: route
+    )
     robot = tmp_path / "robot.xml"
     robot.write_text(
         '<mujoco model="robot"><worldbody><body pos="0 0 1"><freejoint/>'

@@ -15,11 +15,11 @@ from .manifest import FieldAsset
 from .mjcf import FIELD_ATTACH_PREFIX
 from .perimeter_check import build_perimeter_catalog, fence_corners
 from .query import load_heightfield
-from .ramp_source_audit import _verified_glb
+from .source_build import verified_source_glb
 from .slope_demo import rover_xml
 from .stairs import _source_top
 from .training import MuJoCoScenario
-from .wheel_probe import _sample_mujoco_heightfield
+from .query import sample_mujoco_heightfield
 
 ROVER_RADIUS_M = 0.35
 
@@ -73,7 +73,7 @@ def plan_corner_route(grid, corner, entries, wall_regions=()):
         & (py.min(axis=(-2, -1)) >= grid.bounds_xy_m[0][1])
         & (py.max(axis=(-2, -1)) <= grid.bounds_xy_m[1][1])
     )
-    z = _sample_mujoco_heightfield(
+    z = sample_mujoco_heightfield(
         grid,
         np.clip(px, grid.bounds_xy_m[0][0], grid.bounds_xy_m[1][0]),
         np.clip(py, grid.bounds_xy_m[0][1], grid.bounds_xy_m[1][1]),
@@ -138,7 +138,7 @@ def build_corner_catalog(asset, source_manifest, perimeter_catalog=None):
 
     perimeter = perimeter_catalog or build_perimeter_catalog(asset, source_manifest)
     grid = load_heightfield(asset)
-    glb, shift, source_hash = _verified_glb(Path(source_manifest))
+    glb, shift, source_hash = verified_source_glb(Path(source_manifest))
     meshes = list(trimesh.load(glb, force="scene", process=False).dump(concatenate=False))
     spawn = asset.recommended_spawn
     translation = np.array(
@@ -165,7 +165,7 @@ def build_corner_catalog(asset, source_manifest, perimeter_catalog=None):
         dx, dy = np.meshgrid(offsets, offsets)
         footprint = path[:, None, None, :] + np.stack((dx, dy), -1)
         source = _source_top(meshes, footprint.reshape(-1, 2), translation)
-        runtime = _sample_mujoco_heightfield(grid, footprint[..., 0], footprint[..., 1]).ravel()
+        runtime = sample_mujoco_heightfield(grid, footprint[..., 0], footprint[..., 1]).ravel()
         if not np.isfinite(source).all():
             raise ValueError(f"source support missing on {route['id']}")
         source_error = float(np.max(np.abs(source - runtime)))

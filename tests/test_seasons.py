@@ -91,3 +91,41 @@ def test_unregistered_step_is_rejected(field_asset_dir: Path) -> None:
     _rewrite_source_identity(field_asset_dir, official_step_sha256="0" * 64)
     with pytest.raises(ManifestError, match="registered official STEP"):
         FieldAsset.open(field_asset_dir)
+
+
+@pytest.fixture
+def season_without_fly_ramps(monkeypatch: pytest.MonkeyPatch):
+    import dataclasses
+
+    season = dataclasses.replace(
+        RMUC2026, id="no_fly", title="No-fly season", features=frozenset(), scenario_table=None
+    )
+    monkeypatch.setattr(FieldAsset, "season", property(lambda _self: season))
+    return season
+
+
+def test_season_without_fly_ramps_offers_only_core_scenarios(
+    field_asset_dir: Path, season_without_fly_ramps
+) -> None:
+    from rmuc_mujoco.scenarios import BASE_SCENARIOS, scenario_descriptor, scenarios_for
+
+    asset = FieldAsset.open(field_asset_dir)
+    assert scenarios_for(season_without_fly_ramps) is BASE_SCENARIOS
+    assert "fly_ramp_north" in scenarios_for(RMUC2026)
+    with pytest.raises(ValueError, match="unknown scenario 'fly_ramp_north'"):
+        scenario_descriptor(asset, "fly_ramp_north")
+    slope = scenario_descriptor(asset, "slope_basic", profile="collision_only")
+    assert "fly_ramps_excluded" not in slope["scenario"]["region"]
+
+
+def test_fly_ramp_entry_points_report_the_missing_feature(
+    field_asset_dir: Path, tmp_path: Path, season_without_fly_ramps
+) -> None:
+    from rmuc_mujoco import acceptance_routes, regression
+    from rmuc_mujoco.training_region import export_training_region
+
+    asset = FieldAsset.open(field_asset_dir)
+    assert acceptance_routes._fly_ramp_scenarios(asset) == ()
+    assert regression._fly_ramp_scenarios(asset) == ()
+    with pytest.raises(ValueError, match="No-fly season fields have no fly ramps"):
+        export_training_region(asset, tmp_path / "region", scenario_id="fly_ramp_north")

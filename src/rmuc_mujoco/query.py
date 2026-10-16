@@ -14,7 +14,7 @@ from typing import Literal, Mapping
 
 import numpy as np
 
-from .errors import ManifestError, OutOfBoundsError
+from .errors import ManifestError, MujocoModelError, OutOfBoundsError
 from .manifest import FieldAsset
 
 
@@ -143,6 +143,38 @@ def load_heightfield(asset: FieldAsset) -> HeightFieldData:
     data = HeightFieldData(x_m=x - offset_x, y_m=y - offset_y, height_m=height - offset_z)
     _validate_mujoco_grid_alignment(data, collision=collision, terrain_offset_z=offset_z)
     return data
+
+
+def sample_mujoco_heightfield(
+    field: HeightFieldData,
+    x: np.ndarray,
+    y: np.ndarray,
+) -> np.ndarray:
+    """Sample MuJoCo's triangulated heightfield surface at world XY points."""
+
+    if (
+        np.any(x < field.x_m[0])
+        or np.any(x > field.x_m[-1])
+        or np.any(y < field.y_m[0])
+        or np.any(y > field.y_m[-1])
+    ):
+        raise MujocoModelError("heightfield sample point is outside the field")
+    columns = np.clip(np.searchsorted(field.x_m, x, side="left") - 1, 0, len(field.x_m) - 2)
+    rows = np.clip(np.searchsorted(field.y_m, y, side="left") - 1, 0, len(field.y_m) - 2)
+    x0 = field.x_m[columns]
+    y0 = field.y_m[rows]
+    dx = field.x_m[columns + 1] - x0
+    dy = field.y_m[rows + 1] - y0
+    u = (x - x0) / dx
+    v = (y - y0) / dy
+    z00 = field.height_m[rows, columns]
+    z01 = field.height_m[rows, columns + 1]
+    z10 = field.height_m[rows + 1, columns]
+    z11 = field.height_m[rows + 1, columns + 1]
+    lower = v <= u
+    dz_dx = np.where(lower, (z01 - z00) / dx, (z11 - z10) / dx)
+    dz_dy = np.where(lower, (z11 - z01) / dy, (z10 - z00) / dy)
+    return z00 + dz_dx * (x - x0) + dz_dy * (y - y0)
 
 
 def field_bounds(asset: FieldAsset) -> tuple[tuple[float, float], tuple[float, float]]:

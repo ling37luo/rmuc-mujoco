@@ -21,22 +21,22 @@ from typing import Any, Sequence
 
 import numpy as np
 
-from .errors import MujocoModelError
-from .manifest import FieldAsset
-from .query import load_heightfield
+from ...errors import MujocoModelError
+from ...manifest import FieldAsset
+from ...query import load_heightfield
 from .ramp_audit import (
     FIXED_FLY_RAMPS,
     REFERENCE_WHEEL_DIAMETER_M,
     FlyRampGeometry,
     wheel_probe_route_endpoints,
 )
+from ...query import sample_mujoco_heightfield
 from .wheel_probe import (
     WheelProbeConfig,
     WheelSupportProfile,
     _mujoco,
     _probe_ids,
     _require_unique_heightfield,
-    _sample_mujoco_heightfield,
     _support_profile_slope,
     _warning_counts,
     _wheel_heightfield_contacts,
@@ -187,7 +187,7 @@ def measure_runtime_landing_profile(
     low_y = ramp.low_edge_center_xyz_m[1] - float(spawn["y_before_translation_m"])
     x = low_x + along * ramp.uphill_unit_xy[0]
     y = low_y + along * ramp.uphill_unit_xy[1]
-    height = _sample_mujoco_heightfield(field, x, y)
+    height = sample_mujoco_heightfield(field, x, y)
     return detect_landing_profile(
         along,
         height,

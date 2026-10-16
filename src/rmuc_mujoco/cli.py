@@ -23,7 +23,6 @@ from .download import (
 from .display import FieldDisplayController
 from .energy_unit import load_field_with_energy_unit
 from .errors import Rmuc2026Error
-from .fly_routes import APPROACH_BEFORE_LOW_EDGE_M, fly_route_descriptor
 from .manifest import DEFAULT_RUNTIME_PROFILE, RUNTIME_PROFILE_NAMES, FieldAsset, verify_asset
 from .lite_profile import export_interactive_lite_pack
 from .mjcf import UNOFFICIAL_FRICTION_PRESETS, compose_with_robot, load_model
@@ -35,9 +34,8 @@ from .query import (
     find_spawn_candidates,
     surface_at,
 )
-from .ramp_source_audit import audit_fly_ramp_source_overlap
 from .scenarios import get_scenario, list_scenarios, scenario_descriptor
-from .seasons import DEFAULT_SEASON_ID, Season, get_season, season_ids
+from .seasons import DEFAULT_SEASON_ID, FLY_RAMPS, Season, get_season, season_ids
 from .slope_catalog import slope_catalog
 from .source_contact_pack import export_source_wall_pack
 from .turning import reset_turn_spawn, run_turn_batch, screen_turn_spawns
@@ -383,8 +381,7 @@ def build_parser() -> argparse.ArgumentParser:
     view.add_argument(
         "--approach-distance",
         type=float,
-        default=APPROACH_BEFORE_LOW_EDGE_M,
-        help="fly-ramp distance before the low seam in m",
+        help="fly-ramp distance before the low seam in m (default: the RMUC 2026 standard)",
     )
     view.add_argument("--duration", type=float, default=0.0, help="seconds; 0 waits until close")
     view.add_argument(
@@ -674,9 +671,11 @@ def main(argv: list[str] | None = None) -> int:
             )
             return 0
         if args.command == "ramp-source-audit":
-            report = audit_fly_ramp_source_overlap(
-                FieldAsset.open(args.asset, verify=True), args.source_manifest
-            )
+            from .seasons.rmuc2026.ramp_source_audit import audit_fly_ramp_source_overlap
+
+            asset = FieldAsset.open(args.asset, verify=True)
+            asset.season.require(FLY_RAMPS)
+            report = audit_fly_ramp_source_overlap(asset, args.source_manifest)
             output = args.output.expanduser().resolve()
             if output.exists():
                 raise ValueError(f"output already exists: {output}")
@@ -854,7 +853,7 @@ def main(argv: list[str] | None = None) -> int:
                     args.telemetry = Path("runs") / f"{prefix}_batch_{stamp}.json"
             elif args.scenario in {"fly_ramp", "fly_ramp_north", "fly_ramp_south"}:
                 from datetime import datetime, timezone
-                from .fly_batch import DEFAULT_SPEEDS_MPS, run_fly_batch
+                from .seasons.rmuc2026.fly_batch import DEFAULT_SPEEDS_MPS, run_fly_batch
 
                 if args.envs_per_worker != 1:
                     raise ValueError(
@@ -1040,20 +1039,23 @@ def main(argv: list[str] | None = None) -> int:
             if args.steps < 0:
                 raise ValueError("--steps must be non-negative")
             return view_slope(args, asset)
-        if args.scenario in {"fly_ramp_north", "fly_ramp_south"} and (
-            args.robot is None or args.controller is not None
-        ):
-            from .fly_view import view_fly
+        selected_scenario = get_scenario(args.scenario, asset.season)
+        fly_route = None
+        if args.scenario in {"fly_ramp_north", "fly_ramp_south"}:
+            from .seasons.rmuc2026.fly_routes import (
+                APPROACH_BEFORE_LOW_EDGE_M,
+                fly_route_descriptor,
+            )
 
-            if args.steps < 0:
-                raise ValueError("--steps must be non-negative")
-            return view_fly(args, asset)
-        selected_scenario = get_scenario(args.scenario)
-        fly_route = (
-            fly_route_descriptor(asset, args.scenario)
-            if args.scenario in {"fly_ramp_north", "fly_ramp_south"}
-            else None
-        )
+            if args.approach_distance is None:
+                args.approach_distance = APPROACH_BEFORE_LOW_EDGE_M
+            if args.robot is None or args.controller is not None:
+                from .seasons.rmuc2026.fly_view import view_fly
+
+                if args.steps < 0:
+                    raise ValueError("--steps must be non-negative")
+                return view_fly(args, asset)
+            fly_route = fly_route_descriptor(asset, args.scenario)
         if args.robot is None and args.control == "policy":
             raise ValueError("--control policy requires --robot and --controller")
         if args.control == "policy" and args.controller is None:

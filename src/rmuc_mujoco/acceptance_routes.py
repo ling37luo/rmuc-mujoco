@@ -12,9 +12,13 @@ import json
 from pathlib import Path
 from typing import Any, Sequence
 
-from .fly_routes import fly_route_descriptor
+from .seasons import FLY_RAMPS
 from .manifest import FieldAsset
 from .slope_catalog import slope_catalog
+
+
+def _fly_ramp_scenarios(asset: FieldAsset) -> tuple[str, ...]:
+    return ("fly_ramp_north", "fly_ramp_south") if asset.season.has(FLY_RAMPS) else ()
 
 
 def _fence_routes(contract: dict[str, Any]) -> list[dict[str, Any]]:
@@ -149,7 +153,9 @@ def build_preset_routes(pack: FieldAsset | str | Path) -> dict[str, Any]:
             }
         )
 
-    for scenario in ("fly_ramp_north", "fly_ramp_south"):
+    for scenario in _fly_ramp_scenarios(asset):
+        from .seasons.rmuc2026.fly_routes import fly_route_descriptor
+
         descriptor = fly_route_descriptor(asset, scenario)
         routes.append(
             {

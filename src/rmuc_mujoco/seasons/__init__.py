@@ -10,6 +10,15 @@ different season.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import TYPE_CHECKING, Callable, Mapping
+
+if TYPE_CHECKING:
+    from ..scenarios import ScenarioSpec
+
+# Season-only field features.  Core code offers a feature's scenarios and
+# checks only when the pack's season lists it, and imports the season's code
+# for it lazily, so other seasons never load it.
+FLY_RAMPS = "fly_ramps"
 
 
 @dataclass(frozen=True)
@@ -65,6 +74,8 @@ class Season:
     surface_guide: SurfaceGuideSource | None
     core_battlefield_size_m: tuple[float, float]
     features: frozenset[str]
+    # Returns the season's scenario table; None means the core table only.
+    scenario_table: Callable[[], Mapping[str, ScenarioSpec]] | None = None
 
     @property
     def default_source(self) -> FieldSource:
@@ -72,6 +83,10 @@ class Season:
 
     def has(self, feature: str) -> bool:
         return feature in self.features
+
+    def require(self, feature: str) -> None:
+        if feature not in self.features:
+            raise ValueError(f"{self.title} fields have no {feature.replace('_', ' ')}")
 
 
 from .rmuc2026 import SEASON as RMUC2026  # noqa: E402
@@ -110,6 +125,7 @@ def season_of(source: FieldSource) -> Season:
 
 __all__ = [
     "DEFAULT_SEASON_ID",
+    "FLY_RAMPS",
     "FieldSource",
     "OfficialFile",
     "RMUC2026",

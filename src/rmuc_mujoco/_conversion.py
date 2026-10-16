@@ -23,8 +23,7 @@ from typing import Any, Iterable
 
 import numpy as np
 
-from .ramp_audit import audit_fixed_fly_ramps
-from .seasons import RMUC2026, FieldSource, season_of, source_for_step
+from .seasons import FLY_RAMPS, RMUC2026, FieldSource, season_of, source_for_step
 
 
 _RMUC2026_STEP = RMUC2026.default_source
@@ -1729,6 +1728,19 @@ def _record_part_geometry_world_bounds(
     audit["final_world_bounds_recorded"] = True
 
 
+def _season_collision_audits(
+    field_source: FieldSource, x: np.ndarray, y: np.ndarray, height: np.ndarray
+) -> dict[str, Any]:
+    """Season-only audits recorded with the collision heightfield."""
+
+    audits: dict[str, Any] = {}
+    if season_of(field_source).has(FLY_RAMPS):
+        from .seasons.rmuc2026.ramp_audit import audit_fixed_fly_ramps
+
+        audits["fixed_fly_ramp_audit"] = audit_fixed_fly_ramps(x, y, height)
+    return audits
+
+
 def _verified_repack_input(base_build: Path) -> tuple[dict[str, Any], Path, str, bytes]:
     base = Path(base_build).expanduser().resolve()
     manifest_path = base / "manifest.json"
@@ -1916,7 +1928,9 @@ def repack_field_build(
     collision["source_faces"] = int(raw_transformed_metrics["faces"])
     collision["source_surface_area_m2"] = float(raw_transformed_metrics["surface_area_m2"])
     spawn = _complete_collision_and_spawn(collision, x, y, height)
-    collision["fixed_fly_ramp_audit"] = audit_fixed_fly_ramps(x, y, height)
+    recorded_source = source_for_step(manifest["source"]["sha256"])
+    assert recorded_source is not None  # checked by _verified_repack_input
+    collision.update(_season_collision_audits(recorded_source, x, y, height))
     _translate_final_assets(final_meshes, visual_records, output, spawn=spawn)
     _record_part_geometry_world_bounds(simplification, spawn=spawn)
     translated_outer_bounds = _translated_bounds(raw_transformed_metrics, spawn)
@@ -2086,7 +2100,7 @@ def build_field(
     collision["source_faces"] = int(raw_transformed_metrics["faces"])
     collision["source_surface_area_m2"] = float(raw_transformed_metrics["surface_area_m2"])
     spawn = _complete_collision_and_spawn(collision, x, y, height)
-    collision["fixed_fly_ramp_audit"] = audit_fixed_fly_ramps(x, y, height)
+    collision.update(_season_collision_audits(field_source, x, y, height))
     _translate_final_assets(final_meshes, visual_records, output, spawn=spawn)
     _record_part_geometry_world_bounds(simplification, spawn=spawn)
     translated_outer_bounds = _translated_bounds(raw_transformed_metrics, spawn)

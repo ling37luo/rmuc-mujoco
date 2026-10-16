@@ -17,7 +17,7 @@ import numpy as np
 
 from .acceptance import PROFILE_ORDER, _rss_bytes, _warning_counts
 from .display import FieldDisplayController
-from .fly_routes import fly_route_descriptor
+from .seasons import FLY_RAMPS
 from .manifest import FieldAsset
 from .performance import load_rover, machine_snapshot, select_spawn, wheel_command
 from .slope_runtime import reset_slope_spawn
@@ -83,7 +83,10 @@ def _view_worker(conn, pack, profile, spawn, frames, width, height, screenshot_d
                 azimuth=120,
             ),
         }
-        for side, azimuth in [("north", 105), ("south", 285)]:
+        fly_sides = [("north", 105), ("south", 285)] if asset.season.has(FLY_RAMPS) else []
+        for side, azimuth in fly_sides:
+            from .seasons.rmuc2026.fly_routes import fly_route_descriptor
+
             route = fly_route_descriptor(asset, f"fly_ramp_{side}")
             views[f"fly_{side}"] = _camera(
                 mujoco, tuple(route["takeoff_xyz_m"]), distance=5, azimuth=azimuth

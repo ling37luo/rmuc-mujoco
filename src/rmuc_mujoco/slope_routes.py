@@ -8,7 +8,7 @@ from typing import Any
 import numpy as np
 
 from .query import HeightFieldData
-from .wheel_probe import _sample_mujoco_heightfield
+from .query import sample_mujoco_heightfield
 
 
 ROUTE_SCREEN = {
@@ -45,7 +45,7 @@ def screen_slope_route(data: HeightFieldData, patch: dict[str, Any]) -> dict[str
         axis=(1, 2),
     )
     heights = np.full(points.shape[:2], np.nan)
-    heights[inside] = _sample_mujoco_heightfield(data, points[inside, :, 0], points[inside, :, 1])
+    heights[inside] = sample_mujoco_heightfield(data, points[inside, :, 0], points[inside, :, 1])
     radius = round(ROUTE_SCREEN["endpoint_footprint_length_m"] / (2 * step))
     flat = [
         i

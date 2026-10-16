@@ -20,7 +20,6 @@ import zlib
 import numpy as np
 
 from .errors import AssetIntegrityError, ManifestError, MujocoModelError
-from .fly_routes import fly_route_descriptor
 from .manifest import (
     FieldAsset,
     _png_scanline_payload,
@@ -37,6 +36,7 @@ from .mjcf import (
 )
 from .query import HeightFieldData, load_heightfield
 from .scenarios import scenario_descriptor
+from .seasons import FLY_RAMPS
 
 
 REGION_ARTIFACT_TYPE = "rmuc2026_mujoco_training_region"
@@ -253,6 +253,9 @@ def export_training_region(
 
     if scenario_id not in REGION_SCENARIOS:
         raise ValueError(f"scenario_id must be one of {REGION_SCENARIOS}")
+    asset.season.require(FLY_RAMPS)
+    from .seasons.rmuc2026.fly_routes import fly_route_descriptor
+
     if not asset.hashes_verified:
         raise AssetIntegrityError("source field pack must have verified file hashes")
     root = Path(output).expanduser().resolve()

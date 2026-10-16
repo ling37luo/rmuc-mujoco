@@ -24,7 +24,21 @@ _TARGET = _target.__name__
 _PREFIX = __name__ + "."
 
 # Old flat module names whose code now lives elsewhere in ``rmuc_mujoco``.
-_MOVED: dict[str, str] = {}
+_MOVED: dict[str, str] = {
+    name: f"{_TARGET}.seasons.rmuc2026.{name}"
+    for name in (
+        "fly_batch",
+        "fly_demo",
+        "fly_progress",
+        "fly_routes",
+        "fly_runtime",
+        "fly_view",
+        "jump_probe",
+        "ramp_audit",
+        "ramp_source_audit",
+        "wheel_probe",
+    )
+}
 
 
 def _target_name(fullname: str) -> str:
@@ -43,15 +57,22 @@ class _AliasLoader(importlib.abc.Loader):
         self._target = target
 
     def create_module(self, spec: importlib.machinery.ModuleSpec) -> ModuleType:
-        return importlib.import_module(self._target)
+        module = importlib.import_module(self._target)
+        self._target_spec = module.__spec__
+        return module
 
     def exec_module(self, module: ModuleType) -> None:
-        pass
+        # The import system sets ``__spec__`` on whatever create_module
+        # returned; keep the real module's own spec so its relative imports
+        # and reloads still resolve under the new package.
+        module.__spec__ = self._target_spec
 
-    # ``runpy`` (``python -m``) executes the target's code under the old name.
+    # ``python -m`` asks for code to run as ``__main__``.  Run the target
+    # module under its own name so relative imports resolve from its real
+    # package, including modules that moved into ``seasons``.
     def get_code(self, fullname: str):
-        spec = importlib.util.find_spec(self._target)
-        return spec.loader.get_code(self._target)
+        source = f"import runpy\nrunpy.run_module({self._target!r}, run_name='__main__', alter_sys=True)\n"
+        return compile(source, f"<alias of {self._target}>", "exec")
 
 
 class _AliasFinder(importlib.abc.MetaPathFinder):

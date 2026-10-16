@@ -266,7 +266,7 @@ def load_isaac_heightfield(
             )
         )
     elif scenario in {"fly_ramp_north", "fly_ramp_south"}:
-        from .fly_routes import fly_route_descriptor
+        from .seasons.rmuc2026.fly_routes import fly_route_descriptor
 
         route = fly_route_descriptor(field, scenario)
         descriptor["fly_ramp_route"] = route

@@ -1,9 +1,9 @@
 """Deterministic ordinary-slope training descriptors.
 
 The catalog is derived from the verified collision heightfield at load time.  It
-does not create another map or add collision geometry.  It deliberately stops
-below the two audited fly ramps; those are exposed by the separate
-``fly_ramp_north`` and ``fly_ramp_south`` scenarios.
+does not create another map or add collision geometry.  On RMUC 2026 fields it
+deliberately stops below the two audited fly ramps; those are exposed by the
+separate ``fly_ramp_north`` and ``fly_ramp_south`` scenarios.
 """
 
 from __future__ import annotations
@@ -16,7 +16,7 @@ import numpy as np
 
 from .manifest import FieldAsset
 from .query import HEIGHTFIELD_CLAIM_BOUNDARY, HeightFieldData, load_heightfield
-from .ramp_audit import FIXED_FLY_RAMPS
+from .seasons import FLY_RAMPS
 from .slope_routes import ROUTE_SCREEN, screen_slope_route
 
 
@@ -235,6 +235,9 @@ def slope_catalog(
     from .scenarios import scenario_descriptor
 
     descriptor = scenario_descriptor(field, "slope_basic", profile="collision_only")
+    fly_ramps: tuple[Any, ...] = ()
+    if field.season.has(FLY_RAMPS):
+        from .seasons.rmuc2026.ramp_audit import FIXED_FLY_RAMPS as fly_ramps
     band_counts = {
         band.band_id: sum(patch.band_id == band.band_id for patch in patches)
         for band in ORDINARY_SLOPE_BANDS
@@ -247,7 +250,7 @@ def slope_catalog(
             xy = np.asarray(route["waypoints_xyz_m"])[:, :2]
             spawn = field.recommended_spawn
             offset = np.array([spawn["x_before_translation_m"], spawn["y_before_translation_m"]])
-            for ramp in FIXED_FLY_RAMPS:
+            for ramp in fly_ramps:
                 relative = xy + offset - np.asarray(ramp.low_edge_center_xyz_m[:2])
                 direction = np.asarray(ramp.uphill_unit_xy)
                 along = relative @ direction
@@ -264,7 +267,7 @@ def slope_catalog(
             record["route"] = None
             record["route_rejection"] = str(exc)
         records.append(record)
-    return {
+    catalog = {
         "schema_version": 2,
         "catalog_id": "slope_basic",
         "scenario_id": "slope_basic",
@@ -291,6 +294,9 @@ def slope_catalog(
         "topology_verified": False,
         "claim_boundary": HEIGHTFIELD_CLAIM_BOUNDARY,
     }
+    if not fly_ramps:
+        del catalog["fly_ramps_separate"]
+    return catalog
 
 
 def _inside(data: HeightFieldData, x: np.ndarray, y: np.ndarray, *, margin: float) -> np.ndarray:

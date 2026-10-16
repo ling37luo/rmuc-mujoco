@@ -55,7 +55,7 @@ from rmuc_mujoco.perimeter_fence import (
     export_fenced_pack,
     perimeter_fence_contract,
 )
-from rmuc_mujoco.ramp_audit import FIXED_FLY_RAMPS
+from rmuc_mujoco.seasons.rmuc2026.ramp_audit import FIXED_FLY_RAMPS
 
 
 def _sha(path: Path) -> str:

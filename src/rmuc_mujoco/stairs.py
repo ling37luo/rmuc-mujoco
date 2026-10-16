@@ -18,9 +18,9 @@ import numpy as np
 from .collision_candidate import SOURCE_GLB_SHA256
 from .manifest import FieldAsset
 from .query import load_heightfield
-from .ramp_source_audit import _verified_glb
+from .source_build import verified_source_glb
 from .scenarios import scenario_descriptor
-from .wheel_probe import _sample_mujoco_heightfield
+from .query import sample_mujoco_heightfield
 
 # Part identities refer to the pinned unsimplified GLB, not simplified visuals.
 REVIEW_PARTS = (235, 236, 382, 383, 476, 554, 556, 557, 558)
@@ -105,7 +105,7 @@ def build_stair_catalog(asset, source_manifest):
     import trimesh
 
     field = asset if isinstance(asset, FieldAsset) else FieldAsset.open(asset, verify=True)
-    glb, ground_shift, source_hash = _verified_glb(Path(source_manifest))
+    glb, ground_shift, source_hash = verified_source_glb(Path(source_manifest))
     meshes = list(trimesh.load(glb, force="scene", process=False).dump(concatenate=False))
     if len(meshes) != 559:
         raise ValueError("source GLB part order changed")
@@ -137,7 +137,7 @@ def build_stair_catalog(asset, source_manifest):
             try:
                 if np.any(points < grid.bounds_xy_m[0]) or np.any(points > grid.bounds_xy_m[1]):
                     raise ValueError("route_outside_heightfield")
-                runtime = _sample_mujoco_heightfield(grid, points[:, :, 0], points[:, :, 1])
+                runtime = sample_mujoco_heightfield(grid, points[:, :, 0], points[:, :, 1])
                 # Cheap runtime screening precedes expensive source-ray work.
                 screen_step(along, across, runtime, runtime, source_seam_tolerance_m=SEAM_ERROR_M)
                 source = _source_top(meshes, points.reshape(-1, 2), translation).reshape(
@@ -150,7 +150,7 @@ def build_stair_catalog(asset, source_manifest):
             low, high = center[:2] - HALF_ROUTE_M * uphill, center[:2] + HALF_ROUTE_M * uphill
 
             def xyz(xy):
-                z = _sample_mujoco_heightfield(grid, np.array([xy[0]]), np.array([xy[1]]))[0]
+                z = sample_mujoco_heightfield(grid, np.array([xy[0]]), np.array([xy[1]]))[0]
                 return [*xy.tolist(), float(z)]
 
             route = {

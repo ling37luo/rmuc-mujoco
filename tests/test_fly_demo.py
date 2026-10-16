@@ -4,7 +4,7 @@ import mujoco
 import numpy as np
 import pytest
 
-from rmuc_mujoco.fly_demo import FlyRoverController, fly_rover_xml
+from rmuc_mujoco.seasons.rmuc2026.fly_demo import FlyRoverController, fly_rover_xml
 
 
 @pytest.fixture

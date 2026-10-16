@@ -2,10 +2,21 @@
 
 from __future__ import annotations
 
-from .. import FieldSource, OfficialFile, ReviewedRulebook, Season, SurfaceGuideSource
+from .. import (
+    FLY_RAMPS,
+    FieldSource,
+    OfficialFile,
+    ReviewedRulebook,
+    Season,
+    SurfaceGuideSource,
+)
 
-# Feature names checked by the core package before offering a scenario.
-FLY_RAMPS = "fly_ramps"
+
+def _scenario_table():
+    from .scenarios import SCENARIOS
+
+    return SCENARIOS
+
 
 STEP_V2_0_0 = FieldSource(
     season_id="rmuc2026",
@@ -62,4 +73,5 @@ SEASON = Season(
     ),
     core_battlefield_size_m=(28.0, 15.0),
     features=frozenset({FLY_RAMPS}),
+    scenario_table=_scenario_table,
 )

@@ -9,9 +9,9 @@ import os
 from pathlib import Path
 import time
 
-from .fly_routes import fly_route_descriptor
 from .manifest import FieldAsset
 from .mjcf import load_model
+from .seasons import FLY_RAMPS
 
 
 def _camera(mujoco, lookat: tuple[float, float, float], *, distance: float, azimuth: float):
@@ -42,22 +42,18 @@ def benchmark_render(
     model, data = load_model(asset, profile=profile)
     bounds = asset.collision["geom_center_after_translation_m"]
     overview = (float(bounds[0]), float(bounds[1]), 0.4)
-    routes = {side: fly_route_descriptor(asset, f"fly_ramp_{side}") for side in ("north", "south")}
-    views = {
-        "overview": _camera(mujoco, overview, distance=32.0, azimuth=90.0),
-        "fly_north": _camera(
-            mujoco,
-            tuple(float(x) for x in routes["north"]["takeoff_xyz_m"]),
-            distance=5.0,
-            azimuth=105.0,
-        ),
-        "fly_south": _camera(
-            mujoco,
-            tuple(float(x) for x in routes["south"]["takeoff_xyz_m"]),
-            distance=5.0,
-            azimuth=285.0,
-        ),
-    }
+    views = {"overview": _camera(mujoco, overview, distance=32.0, azimuth=90.0)}
+    if asset.season.has(FLY_RAMPS):
+        from .seasons.rmuc2026.fly_routes import fly_route_descriptor
+
+        for side, azimuth in (("north", 105.0), ("south", 285.0)):
+            route = fly_route_descriptor(asset, f"fly_ramp_{side}")
+            views[f"fly_{side}"] = _camera(
+                mujoco,
+                tuple(float(x) for x in route["takeoff_xyz_m"]),
+                distance=5.0,
+                azimuth=azimuth,
+            )
     results = {}
     with mujoco.Renderer(model, height=height, width=width) as renderer:
         for name, camera in views.items():

@@ -13,34 +13,10 @@ from typing import Any
 
 import numpy as np
 
-from .collision_candidate import SOURCE_GLB_SHA256
-from .download import OFFICIAL_STEP_SHA256
-from .manifest import FieldAsset, sha256_file
+from ...collision_candidate import SOURCE_GLB_SHA256
+from ...manifest import FieldAsset
+from ...source_build import verified_source_glb
 from .ramp_audit import FIXED_FLY_RAMPS, RAMP_INTERIOR_INSET_M
-
-
-def _verified_glb(source_manifest_path: Path) -> tuple[Path, float, str]:
-    root = source_manifest_path.expanduser().resolve().parent
-    source = json.loads(source_manifest_path.read_text(encoding="utf-8"))
-    if (
-        source.get("artifact_type") != "rmuc2026_official_field_mujoco_asset"
-        or source.get("status") != "PASS"
-        or source["source"]["sha256"] != OFFICIAL_STEP_SHA256
-    ):
-        raise ValueError("source build is not the pinned passing official field")
-    record = source["conversion"]["colored_intermediate_glb"]
-    if record["sha256"] != SOURCE_GLB_SHA256:
-        raise ValueError("source GLB is not the audited unsimplified official geometry")
-    relative = Path(str(record["file"]))
-    path = (root / relative).resolve()
-    if relative.is_absolute() or root not in path.parents or not path.is_file():
-        raise ValueError("source GLB is missing or outside the build")
-    if sha256_file(path) != SOURCE_GLB_SHA256:
-        raise ValueError("source GLB SHA-256 mismatch")
-    shift = -float(source["conversion"]["main_floor_height_before_shift_m"])
-    if not np.isfinite(shift):
-        raise ValueError("source ground shift is non-finite")
-    return path, shift, sha256_file(source_manifest_path)
 
 
 def audit_fly_ramp_source_overlap(asset: FieldAsset, source_manifest_path: Path) -> dict[str, Any]:
@@ -48,7 +24,7 @@ def audit_fly_ramp_source_overlap(asset: FieldAsset, source_manifest_path: Path)
 
     if not asset.hashes_verified:
         raise ValueError("ramp source audit requires a fully verified runtime pack")
-    glb_path, shift, source_manifest_sha = _verified_glb(source_manifest_path)
+    glb_path, shift, source_manifest_sha = verified_source_glb(source_manifest_path)
     import trimesh
 
     scene = trimesh.load(glb_path, force="scene", process=False)

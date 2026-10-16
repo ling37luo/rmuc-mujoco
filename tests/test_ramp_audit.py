@@ -14,7 +14,7 @@ from rmuc_mujoco._conversion import (
     _heightfield_grid_axes,
     _square_local_range,
 )
-from rmuc_mujoco.ramp_audit import (
+from rmuc_mujoco.seasons.rmuc2026.ramp_audit import (
     FIXED_FLY_RAMPS,
     WHEEL_PROBE_SPEEDS_M_S,
     WHEEL_PROBE_LOW_SIDE_APPROACH_M,

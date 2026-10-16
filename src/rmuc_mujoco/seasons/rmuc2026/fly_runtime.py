@@ -11,15 +11,15 @@ import time
 
 import numpy as np
 
-from .control import load_controller
+from ...control import load_controller
 from .fly_progress import FlyRampProgress
 from .fly_routes import APPROACH_BEFORE_LOW_EDGE_M, fly_route_descriptor
-from .manifest import FieldAsset
-from .mjcf import FIELD_ATTACH_PREFIX, compose_with_robot
-from .query import load_heightfield
-from .scenarios import scenario_descriptor
-from .slope_runtime import _root_joint, reset_slope_spawn
-from .training_region import TrainingRegion, compose_training_region_with_robot
+from ...manifest import FieldAsset
+from ...mjcf import FIELD_ATTACH_PREFIX, compose_with_robot
+from ...query import load_heightfield
+from ...scenarios import scenario_descriptor
+from ...slope_runtime import _root_joint, reset_slope_spawn
+from ...training_region import TrainingRegion, compose_training_region_with_robot
 
 
 FLY_SCENARIOS = ("fly_ramp_north", "fly_ramp_south")

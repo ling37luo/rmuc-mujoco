@@ -10,7 +10,8 @@ import numpy as np
 import pytest
 
 from rmuc_mujoco.errors import AssetIntegrityError, ManifestError
-from rmuc_mujoco.fly_batch import run_fly_batch
+from rmuc_mujoco.seasons import RMUC2026
+from rmuc_mujoco.seasons.rmuc2026.fly_batch import run_fly_batch
 from rmuc_mujoco.isaac import (
     export_isaac_training_region,
     load_isaac_training_region,
@@ -46,6 +47,7 @@ def _fake_source(tmp_path: Path, monkeypatch) -> tuple[SimpleNamespace, HeightFi
     yy, xx = np.meshgrid(axis, axis, indexing="ij")
     world = HeightFieldData(axis, axis, 0.10 + 0.01 * xx + 0.005 * yy)
     asset = SimpleNamespace(
+        season=RMUC2026,
         hashes_verified=True,
         manifest_sha256="a" * 64,
         manifest={"validation_status": "DRAFT_BLOCKED", "schema_version": 3},
@@ -70,7 +72,9 @@ def _fake_source(tmp_path: Path, monkeypatch) -> tuple[SimpleNamespace, HeightFi
         "landing_target_xyz_m": [0.5, 0.0, 0.12],
         "spawn": {"xyz_m": [-0.5, 0.0, 0.08], "heading_yaw_rad": 0.0},
     }
-    monkeypatch.setattr("rmuc_mujoco.training_region.fly_route_descriptor", lambda *_: route)
+    monkeypatch.setattr(
+        "rmuc_mujoco.seasons.rmuc2026.fly_routes.fly_route_descriptor", lambda *_: route
+    )
     monkeypatch.setattr("rmuc_mujoco.training_region.load_heightfield", lambda *_: world)
     monkeypatch.setattr(
         "rmuc_mujoco.training_region.scenario_descriptor",

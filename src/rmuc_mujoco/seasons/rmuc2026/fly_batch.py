@@ -13,10 +13,10 @@ import time
 
 from .fly_routes import APPROACH_BEFORE_LOW_EDGE_M
 from .fly_runtime import FLY_SCENARIOS, FlyRampSession
-from .manifest import FieldAsset
-from .scenarios import scenario_descriptor
-from .training import _cpu_rss_bytes
-from .training_region import REGION_ARTIFACT_TYPE, TrainingRegion
+from ...manifest import FieldAsset
+from ...scenarios import scenario_descriptor
+from ...training import _cpu_rss_bytes
+from ...training_region import REGION_ARTIFACT_TYPE, TrainingRegion
 
 
 DEFAULT_SPEEDS_MPS = (1.5, 1.8, 2.0, 2.2, 2.5)

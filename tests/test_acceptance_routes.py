@@ -76,7 +76,7 @@ def test_complete_presets_bind_pack_and_omit_unlocated_stairs(
         },
     )
     monkeypatch.setattr(
-        "rmuc_mujoco.acceptance_routes.fly_route_descriptor",
+        "rmuc_mujoco.seasons.rmuc2026.fly_routes.fly_route_descriptor",
         lambda _asset, scenario: {
             "approach_xyz_m": [0.0, 0.0, 0.0],
             "takeoff_xyz_m": [0.8, 0.0, 0.2],

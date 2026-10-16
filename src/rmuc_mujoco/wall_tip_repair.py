@@ -278,7 +278,7 @@ def derive_wall_tip_repaired_field_build(base_build: Path, output_dir: Path) -> 
         _write_json_atomically,
         sha256_file,
     )
-    from .ramp_audit import audit_fixed_fly_ramps
+    from .seasons.rmuc2026.ramp_audit import audit_fixed_fly_ramps
 
     base = Path(base_build).expanduser().resolve()
     output = Path(output_dir).expanduser().resolve()
