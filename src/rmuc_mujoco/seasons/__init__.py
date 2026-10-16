@@ -90,8 +90,9 @@ class Season:
 
 
 from .rmuc2026 import SEASON as RMUC2026  # noqa: E402
+from .rmuc2027 import SEASON as RMUC2027  # noqa: E402
 
-SEASONS: dict[str, Season] = {season.id: season for season in (RMUC2026,)}
+SEASONS: dict[str, Season] = {season.id: season for season in (RMUC2026, RMUC2027)}
 DEFAULT_SEASON_ID = RMUC2026.id
 
 
@@ -129,6 +130,7 @@ __all__ = [
     "FieldSource",
     "OfficialFile",
     "RMUC2026",
+    "RMUC2027",
     "ReviewedRulebook",
     "SEASONS",
     "Season",

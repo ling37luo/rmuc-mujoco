@@ -69,6 +69,24 @@ def test_setup_cli_has_a_safe_user_cache_default() -> None:
     assert args.output == Path("local-field-pack")
 
 
+def test_source_cli_reports_the_selected_season(capsys) -> None:
+    assert main(["source", "--season", "rmuc2027"]) == 0
+    output = json.loads(capsys.readouterr().out)
+    assert output["season"] == "rmuc2027"
+    assert output["registered_seasons"] == ["rmuc2026", "rmuc2027"]
+    assert output["official_step_version"] == "1.0.0"
+    assert output["official_step_url"].endswith("/RMUC2027_V1.0.0.stp")
+    assert output["rulebook_review"]["latest_reviewed_version"] == "V1.0.0"
+
+
+def test_setup_rejects_a_surface_guide_the_season_lacks(tmp_path: Path) -> None:
+    assert (
+        main(["setup", str(tmp_path / "pack"), "--season", "rmuc2027", "--include-surface-guide"])
+        == 2
+    )
+    assert not (tmp_path / "pack").exists()
+
+
 def test_build_commands_reject_unknown_seasons() -> None:
     for command in (["setup", "pack"], ["build", "--step", "x", "--output", "y"], ["source"]):
         with pytest.raises(SystemExit):

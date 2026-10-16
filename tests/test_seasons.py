@@ -10,7 +10,9 @@ from rmuc_mujoco import FieldAsset
 from rmuc_mujoco.errors import ManifestError
 from rmuc_mujoco.seasons import (
     DEFAULT_SEASON_ID,
+    FLY_RAMPS,
     RMUC2026,
+    RMUC2027,
     SEASONS,
     get_season,
     season_of,
@@ -28,7 +30,7 @@ def _rewrite_source_identity(root: Path, **fields: object) -> None:
 def test_registry_resolves_seasons_and_step_identities() -> None:
     assert DEFAULT_SEASON_ID == "rmuc2026"
     assert get_season("rmuc2026") is RMUC2026
-    with pytest.raises(ValueError, match="known seasons: rmuc2026"):
+    with pytest.raises(ValueError, match="known seasons: rmuc2026, rmuc2027"):
         get_season("rmuc1999")
 
     source = RMUC2026.default_source
@@ -37,6 +39,18 @@ def test_registry_resolves_seasons_and_step_identities() -> None:
     assert source_for_step(source.step.sha256, source.step.size_bytes + 1) is None
     assert source_for_step("0" * 64) is None
     assert season_of(source) is RMUC2026
+
+
+def test_rmuc2027_is_registered_without_2026_features() -> None:
+    from rmuc_mujoco.scenarios import BASE_SCENARIOS, scenarios_for
+
+    source = RMUC2027.default_source
+    assert get_season("rmuc2027") is RMUC2027
+    assert source.version == "1.0.0" and source.step_product == "00_RMUC20270001_ASM"
+    assert source_for_step(source.step.sha256, source.step.size_bytes) is source
+    assert not RMUC2027.has(FLY_RAMPS)
+    assert RMUC2027.surface_guide is None
+    assert scenarios_for(RMUC2027) is BASE_SCENARIOS
 
 
 def test_every_registered_source_has_a_unique_step_identity() -> None:
