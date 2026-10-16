@@ -347,10 +347,17 @@ def find_spawn_candidates(
         & (footprint_slope <= maximum_slope + 1.0e-12)
         & (clearance >= radius + margin - 1.0e-12)
     )
-    # Mesh-owned walls no longer appear as raised samples in the heightfield.
-    # Their ground-level footprint must still be excluded from reset positions.
-    for region in asset.collision.get("source_contact_layer", {}).get("ownership_regions", []):
-        lower, upper = np.asarray(region["source_bounds_world_m"], dtype=float)
+    # Mesh-owned walls and tunnel roofs no longer appear as raised samples in
+    # the heightfield.  Their footprints must still be excluded from resets.
+    owned = [
+        region["source_bounds_world_m"]
+        for region in asset.collision.get("source_contact_layer", {}).get("ownership_regions", [])
+    ] + [
+        roof["span_world_xy_m"]
+        for roof in asset.collision.get("tunnel_contact_layer", {}).get("roofs", [])
+    ]
+    for bounds in owned:
+        lower, upper = np.asarray(bounds, dtype=float)[:, :2]
         valid &= ~(
             (x_grid + radius >= lower[0])
             & (x_grid - radius <= upper[0])

@@ -30,7 +30,7 @@ def test_suite_reports_failure_and_continues_remaining_sections(
     result = regression.run_regression(field_asset_dir, "source.json", output=output)
     assert result["status"] == "FAIL"
     assert result["failed_sections"] == ["interfaces"]
-    assert set(result["unavailable_sections"]) == {"walls", "perimeter", "corners"}
+    assert set(result["unavailable_sections"]) == {"walls", "perimeter", "corners", "tunnels"}
     assert result["sections"]["interfaces"]["error"] == "RuntimeError: controller failed"
     assert result["robot_task_outcomes"]["failed"] == 2
     assert json.loads(output.read_text()) == result

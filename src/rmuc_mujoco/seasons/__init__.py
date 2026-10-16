@@ -19,6 +19,7 @@ if TYPE_CHECKING:
 # checks only when the pack's season lists it, and imports the season's code
 # for it lazily, so other seasons never load it.
 FLY_RAMPS = "fly_ramps"
+TUNNELS = "tunnels"
 
 
 @dataclass(frozen=True)
@@ -43,6 +44,22 @@ class ReviewedRulebook:
 
 
 @dataclass(frozen=True)
+class TunnelRoof:
+    """One tunnel roof, identified by its part in the build's source GLB.
+
+    The covered span is the roof's lowest underside face: the heightfield is
+    lowered to the channel floor there and the roof becomes a collision mesh.
+    """
+
+    tunnel_id: str
+    source_part_index: int
+    # CAD-frame search box (x0, x1, y0, y1) that contains exactly this roof.
+    search_box_xy_m: tuple[float, float, float, float]
+    # Expected covered-span size along CAD x and y, from the official drawing.
+    covered_span_m: tuple[float, float]
+
+
+@dataclass(frozen=True)
 class FieldSource:
     """One official STEP release of a season's field drawing."""
 
@@ -54,6 +71,10 @@ class FieldSource:
     # Visual mesh groups a correct conversion of this STEP produces; the pack
     # exporter rejects a source build with any other count.
     visual_mesh_count: int
+    # The unsimplified GLB that the builder writes for this STEP; source-bound
+    # checks address its parts by index.
+    source_glb_sha256: str
+    tunnel_roofs: tuple[TunnelRoof, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -138,6 +159,8 @@ __all__ = [
     "SEASONS",
     "Season",
     "SurfaceGuideSource",
+    "TUNNELS",
+    "TunnelRoof",
     "get_season",
     "season_ids",
     "season_of",

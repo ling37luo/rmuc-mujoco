@@ -4,11 +4,13 @@ from __future__ import annotations
 
 from .. import (
     FLY_RAMPS,
+    TUNNELS,
     FieldSource,
     OfficialFile,
     ReviewedRulebook,
     Season,
     SurfaceGuideSource,
+    TunnelRoof,
 )
 
 
@@ -32,6 +34,14 @@ STEP_V2_0_0 = FieldSource(
     step_product="00_RMUC2026_FINALS_ASM",
     source_page="https://bbs.robomaster.com/article/814728?source=8",
     visual_mesh_count=38,
+    source_glb_sha256="5bc8042c0fcb90e6f23f1f6624dbf8af1177b582a56254b4df092ee04ef23705",
+    # Two tunnels per side; the field is centrally symmetric about (0, 1.624).
+    tunnel_roofs=(
+        TunnelRoof("a_red", 554, (-5.4, -4.0, -4.1, -3.1), (0.70, 0.35)),
+        TunnelRoof("a_blue", 557, (4.0, 5.4, 6.34, 7.34), (0.70, 0.35)),
+        TunnelRoof("b_red", 388, (0.5, 1.4, -5.0, -3.6), (0.35, 0.80)),
+        TunnelRoof("b_blue", 389, (-1.4, -0.5, 6.84, 8.24), (0.35, 0.80)),
+    ),
 )
 
 SEASON = Season(
@@ -73,6 +83,6 @@ SEASON = Season(
         overhead_pdf_page=32,
     ),
     core_battlefield_size_m=(28.0, 15.0),
-    features=frozenset({FLY_RAMPS}),
+    features=frozenset({FLY_RAMPS, TUNNELS}),
     scenario_table=_scenario_table,
 )

@@ -24,6 +24,7 @@ from .slope_demo import RoverController, rover_xml
 from .slope_runtime import SlopeSession
 from .stairs import run_stair_checks
 from .training import MuJoCoScenario
+from .tunnel_check import run_tunnel_checks
 from .wall_check import run_wall_checks
 
 SUITE_ID = "rmuc2026_static_interaction_v1"
@@ -383,6 +384,12 @@ def run_regression(
         lambda: check_example_episodes(
             asset, selected, surfaces.get("ordinary_patches", []), stairs.get("catalog")
         ),
+    )
+    stage(
+        "tunnels",
+        lambda: run_tunnel_checks(asset, profiles=selected)
+        if asset.collision.get("tunnel_contact_layer")
+        else absent("pack has no tunnel layer"),
     )
     report.update(summarize_sections(report["sections"]))
     report["robot_task_outcomes"] = report["sections"]["example_robots"].get("summary")

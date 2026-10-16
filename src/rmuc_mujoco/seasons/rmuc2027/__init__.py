@@ -1,13 +1,13 @@
 """RMUC 2027: pinned official sources.
 
-The 2027 field replaces the 2026 fly ramps with tunnels that robots drive
-through or over, and adds a high point reached by three steps.  No 2027-only
-feature is implemented yet, so 2027 packs offer the core scenarios only.
+The 2027 field replaces the 2026 fly ramps with a third pair of tunnels that
+robots drive through or over (rulebook 4.4.2: 800 mm channel, 350 mm metal
+roof, 250 mm clearance), and adds a high point reached by three steps.
 """
 
 from __future__ import annotations
 
-from .. import FieldSource, OfficialFile, ReviewedRulebook, Season
+from .. import TUNNELS, FieldSource, OfficialFile, ReviewedRulebook, Season, TunnelRoof
 
 STEP_V1_0_0 = FieldSource(
     season_id="rmuc2027",
@@ -24,6 +24,16 @@ STEP_V1_0_0 = FieldSource(
     source_page="https://bbs.robomaster.com/article/1970956",
     # Measured from the first local V1.0.0 build (2026-10-16).
     visual_mesh_count=41,
+    source_glb_sha256="5117497d92424e8bfdfc5154354de5861af06c23a6bc5b977977122405e33e92",
+    # Tunnels a and b keep their 2026 places; c replaces the fly ramp.
+    tunnel_roofs=(
+        TunnelRoof("a_red", 229, (-5.4, -4.0, -4.1, -3.1), (0.80, 0.35)),
+        TunnelRoof("a_blue", 226, (4.0, 5.4, 6.34, 7.34), (0.80, 0.35)),
+        TunnelRoof("b_red", 116, (0.5, 1.4, -5.0, -3.6), (0.35, 0.80)),
+        TunnelRoof("b_blue", 123, (-1.4, -0.5, 6.84, 8.24), (0.35, 0.80)),
+        TunnelRoof("c_red", 178, (-0.5, 0.5, -6.0, -4.6), (0.35, 0.80)),
+        TunnelRoof("c_blue", 150, (-0.5, 0.5, 7.84, 9.24), (0.35, 0.80)),
+    ),
 )
 
 SEASON = Season(
@@ -52,5 +62,5 @@ SEASON = Season(
     ),
     surface_guide=None,
     core_battlefield_size_m=(28.0, 15.0),
-    features=frozenset(),
+    features=frozenset({TUNNELS}),
 )

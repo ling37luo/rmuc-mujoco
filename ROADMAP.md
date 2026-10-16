@@ -26,7 +26,7 @@ performance matrix, visible frame measurements and PhysX region probes through
 | 4 | Wall contact and collision ownership | High | Complete for source-bound side/end and junction routes |
 | 5 | Portable full-field interaction regression | After 2–4 | Complete; seven-section `check` suite with public robots and generated routes |
 | 6 | Parallel performance and profile selection | After baseline regression | Complete for MuJoCo 1/4/16 environments, visible profile comparison and PhysX region contact through 64 |
-| 7 | Multi-season fields (RMUC 2027) | Next | Registry and 2026 separation complete; 2027 source, tunnels and high-point stairs open |
+| 7 | Multi-season fields (RMUC 2027) | Next | Registry, 2027 source and tunnel collision (both seasons) complete; high-point stairs and 2027 source checks open |
 
 ### 1. Public documentation
 
@@ -112,15 +112,14 @@ measurements. Detailed hardware results stay in local reports.
 ### 7. Multi-season fields
 
 `rmuc_mujoco.seasons` pins each season's official sources and lists its
-season-only features; a pack's season follows from its STEP hash. RMUC 2026 is
-registered and its fly-ramp code lives in `seasons/rmuc2026`. For RMUC 2027
-(rulebook V1.0.0, 2026-10-15), register the STEP, compare the generated
-heightfield with 2026, then add the tunnels and the three-step high point.
-Tunnels can be driven through and over, so they need stacked collision: the
-single-height heightfield cannot represent a drivable underpass.
+season-only features; a pack's season follows from its STEP hash. RMUC 2026 and
+RMUC 2027 (STEP V1.0.0, rulebook V1.0.0 of 2026-10-15) are registered, and the
+fly-ramp code lives in `seasons/rmuc2026`. `tunnel-pack` gives both seasons'
+tunnels source-derived roofs over a lowered channel floor. Remaining for 2027:
+the three-step high point, the 2027 source-part data for stair/wall/edge checks,
+and a tunnel training scenario (through and over).
 
-Done when a 2027 pack builds and passes `check`, and tunnel routes pass in both
-the through and over modes.
+Done when a 2027 pack passes `check` with those sections available.
 
 ## Scope
 

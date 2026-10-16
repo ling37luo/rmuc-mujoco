@@ -149,10 +149,12 @@ with included robots and automatically generated routes. The report separates
 field checks from robot task outcomes and identifies unavailable pack features.
 
 The main collision surface is a single-height-per-XY heightfield. Underpasses,
-stacked surfaces and overhangs are not represented correctly. An optional
-source-wall export adds local convex collision. Selected wall, perimeter and
-reachable corner approaches have regression checks; these do not cover every
-structure or robot. Dynamic match mechanisms are outside the
+stacked surfaces and overhangs are not represented correctly, except for tunnels:
+the optional `tunnel-pack` lowers the heightfield under each tunnel roof and adds
+the roof as source-derived collision, so robots can drive through (250 mm
+clearance) or over. An optional source-wall export adds local convex collision.
+Selected wall, perimeter, reachable corner and tunnel checks are in the regression;
+these do not cover every structure or robot. Dynamic match mechanisms are outside the
 current locomotion baseline.
 
 Packs therefore retain `DRAFT_BLOCKED`: file verification and individual route

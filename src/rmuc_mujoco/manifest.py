@@ -535,8 +535,9 @@ def _validate_cross_references(
     wall_tip_repair = collision.get("verified_wall_tip_repair")
     if wall_tip_repair is not None:
         try:
+            # A tunnel layer, applied last, re-hashes the samples it lowers.
             validate_wall_tip_repair_record(
-                wall_tip_repair, collision_samples_sha256=str(collision["samples_sha256"])
+                wall_tip_repair, collision_samples_sha256=str(_samples_before_tunnels(collision))
             )
         except ValueError as exc:
             raise ManifestError(f"invalid collision.verified_wall_tip_repair: {exc}") from exc
@@ -604,6 +605,7 @@ def _validate_cross_references(
     lite_visual = _validate_visual_lite(
         manifest, files, visual_meshes=visual, schema_version=schema_version, verify=verify
     )
+    tunnel_meshes = _validate_tunnel_contact_layer(manifest, files, collision=collision)
     source_contact_meshes = _validate_source_contact_layer(
         manifest, files, collision=collision, schema_version=schema_version
     )
@@ -628,7 +630,8 @@ def _validate_cross_references(
         livery_contract=livery_contract,
         fence_contract=fence_contract,
         lite_visual=lite_visual,
-        source_contact_meshes=source_contact_meshes,
+        # Tunnel roofs use the same contact-mesh geom contract as source walls.
+        source_contact_meshes=source_contact_meshes + tunnel_meshes,
     )
 
 
@@ -1083,6 +1086,147 @@ def _validate_visual_lite(
     return tuple(lite_files)
 
 
+def _samples_before_tunnels(collision: Mapping[str, Any]) -> object:
+    """The heightfield hash a tunnel layer (always applied last) started from."""
+
+    tunnels = collision.get("tunnel_contact_layer")
+    if isinstance(tunnels, Mapping):
+        return tunnels.get("base_collision_samples_sha256")
+    return collision["samples_sha256"]
+
+
+_TUNNEL_LAYER_KEYS = {
+    "kind",
+    "status",
+    "season",
+    "official_step_version",
+    "source_manifest_sha256",
+    "source_glb_sha256",
+    "base_collision_samples_sha256",
+    "updated_collision_samples_sha256",
+    "roofs",
+    "mesh_geoms",
+    "claim_boundary",
+}
+_TUNNEL_ROOF_KEYS = {
+    "tunnel_id",
+    "source_part_index",
+    "span_world_xy_m",
+    "travel_axis",
+    "underside_m",
+    "top_m",
+    "floor_m",
+    "clearance_m",
+    "hfield_nodes_lowered",
+    "changed_grid_rectangle_yx",
+}
+_CONTACT_MESH_KEYS = {
+    "name",
+    "file",
+    "sha256",
+    "source_part_index",
+    "contype",
+    "conaffinity",
+    "friction",
+    "solref",
+}
+
+
+def _validate_tunnel_contact_layer(
+    manifest: Mapping[str, Any],
+    files: Mapping[str, Path],
+    *,
+    collision: Mapping[str, Any],
+) -> tuple[Mapping[str, Any], ...]:
+    """Bind the opt-in tunnel roof meshes to the season's pinned roofs."""
+
+    from .tunnel_contact import LAYER_KIND, ROOF_MESH_ROLE, roof_mesh_file, roof_mesh_name
+
+    value = collision.get("tunnel_contact_layer")
+    if value is None:
+        return ()
+    layer = _mapping(value, label="collision.tunnel_contact_layer")
+    if set(layer) != _TUNNEL_LAYER_KEYS:
+        raise ManifestError("tunnel_contact_layer contains unsupported or missing fields")
+    field_source = source_for_step(manifest["source_identity"]["official_step_sha256"])
+    if field_source is None or not field_source.tunnel_roofs:
+        raise ManifestError("tunnel_contact_layer requires a STEP release with pinned roofs")
+    base_sha = _sha256(
+        layer["base_collision_samples_sha256"],
+        label="tunnel_contact_layer.base_collision_samples_sha256",
+    )
+    if (
+        layer["kind"] != LAYER_KIND
+        or layer["status"] != "EXPERIMENTAL_BLOCKED"
+        or layer["season"] != field_source.season_id
+        or layer["official_step_version"] != field_source.version
+        or layer["source_manifest_sha256"] != manifest["source_identity"]["field_manifest_sha256"]
+        or layer["source_glb_sha256"] != field_source.source_glb_sha256
+        or layer["updated_collision_samples_sha256"] != collision["samples_sha256"]
+        or base_sha == collision["samples_sha256"]
+        or not isinstance(layer["claim_boundary"], str)
+        or not layer["claim_boundary"]
+    ):
+        raise ManifestError("tunnel_contact_layer source or status contract is invalid")
+    expected = [(roof.tunnel_id, roof.source_part_index) for roof in field_source.tunnel_roofs]
+    roofs, records = layer["roofs"], layer["mesh_geoms"]
+    if (
+        not isinstance(roofs, list)
+        or not isinstance(records, list)
+        or len(roofs) != len(expected)
+        or len(records) != len(expected)
+    ):
+        raise ManifestError("tunnel_contact_layer must list every pinned roof once")
+    meshes = []
+    for (tunnel_id, part), roof_value, record_value in zip(expected, roofs, records):
+        roof = _mapping(roof_value, label=f"tunnel roof {tunnel_id}")
+        record = _mapping(record_value, label=f"tunnel roof mesh {tunnel_id}")
+        if (
+            set(roof) != _TUNNEL_ROOF_KEYS
+            or roof["tunnel_id"] != tunnel_id
+            or roof["source_part_index"] != part
+            or roof["travel_axis"] not in ("x", "y")
+        ):
+            raise ManifestError(f"tunnel roof {tunnel_id} record is invalid")
+        clearance = _number_list(roof["clearance_m"], label="tunnel clearance", length=3)
+        underside = _number_list(roof["underside_m"], label="tunnel underside", length=2)
+        top = _number_list(roof["top_m"], label="tunnel top", length=2)
+        _number_list(roof["floor_m"], label="tunnel floor", length=2)
+        _integer(roof["hfield_nodes_lowered"], label="hfield_nodes_lowered", minimum=1)
+        if (
+            not clearance[0] <= clearance[1] <= clearance[2]
+            or clearance[0] < 0.15
+            or underside[1] >= top[1]
+        ):
+            raise ManifestError(f"tunnel roof {tunnel_id} geometry summary is invalid")
+        if set(record) != _CONTACT_MESH_KEYS:
+            raise ManifestError("tunnel roof mesh record contains unsupported fields")
+        relative = roof_mesh_file(tunnel_id)
+        if (
+            record["name"] != roof_mesh_name(tunnel_id)
+            or record["file"] != relative
+            or record["source_part_index"] != part
+        ):
+            raise ManifestError(f"tunnel roof mesh {tunnel_id} name, path or part is invalid")
+        digest = _sha256(record["sha256"], label=f"tunnel roof mesh {tunnel_id} sha256")
+        _require_cross_file(
+            files, manifest, relative, digest, label=f"tunnel roof mesh {tunnel_id}"
+        )
+        file_record = next(
+            item for item in manifest["contents"]["files"] if item["file"] == relative
+        )
+        if file_record.get("role") != ROOF_MESH_ROLE:
+            raise ManifestError("tunnel roof mesh file role is invalid")
+        if record["contype"] != 2 or record["conaffinity"] != 1:
+            raise ManifestError("tunnel roof mesh contact bits are invalid")
+        friction = _number_list(record["friction"], label="tunnel roof friction", length=3)
+        solref = _number_list(record["solref"], label="tunnel roof solref", length=2)
+        if friction != (1.0, 0.005, 0.0001) or solref != (0.005, 1.0):
+            raise ManifestError("tunnel roof mesh physical parameters are invalid")
+        meshes.append(record)
+    return tuple(meshes)
+
+
 def _validate_source_contact_layer(
     manifest: Mapping[str, Any],
     files: Mapping[str, Path],
@@ -1117,7 +1261,7 @@ def _validate_source_contact_layer(
         or layer["status"] != "EXPERIMENTAL_BLOCKED"
         or layer["source_manifest_sha256"] != manifest["source_identity"]["field_manifest_sha256"]
         or layer["source_glb_sha256"] != SOURCE_GLB_SHA256
-        or layer["updated_collision_samples_sha256"] != collision["samples_sha256"]
+        or layer["updated_collision_samples_sha256"] != _samples_before_tunnels(collision)
         or not isinstance(layer["claim_boundary"], str)
         or not layer["claim_boundary"]
     ):
@@ -1127,7 +1271,7 @@ def _validate_source_contact_layer(
         label="source_contact_layer.base_collision_samples_sha256",
     )
     if (
-        base_sha == collision["samples_sha256"]
+        base_sha == _samples_before_tunnels(collision)
         or collision.get("verified_wall_tip_repair") is not None
     ):
         raise ManifestError("source contact layer must supersede the original wall roof samples")
@@ -1411,7 +1555,7 @@ def _validate_runtime_profile_xml(
             or asset_mesh[0].attrib != {"name": name, "file": record["file"]}
             or len(collision_geom) != 1
         ):
-            raise ManifestError(f"runtime profile {profile!r} source wall {name} is missing")
+            raise ManifestError(f"runtime profile {profile!r} contact mesh {name} is missing")
         geom = collision_geom[0]
         if set(geom.attrib) != {
             "name",
@@ -1435,7 +1579,7 @@ def _validate_runtime_profile_xml(
                 "rgba": "0.4 0.4 0.4 0",
             }.items()
         ):
-            raise ManifestError(f"runtime profile {profile!r} source wall {name} changed contact")
+            raise ManifestError(f"runtime profile {profile!r} contact mesh {name} changed contact")
         for key in ("friction", "solref"):
             expected = tuple(float(item) for item in record[key])
             actual = _xml_number_list_attribute(

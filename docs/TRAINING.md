@@ -60,7 +60,7 @@ rmuc-field check ./runs/field-contacts \
 The versioned suite generates its routes from the selected pack and source.
 It checks public loading/reset/stepping and manual/policy callbacks, ordinary
 slopes, both fly ramps, isolated stairs, perimeter strips, whole-rover corner
-approaches and source walls. It uses the included probes and example robots;
+approaches, source walls and tunnel roofs. It uses the included probes and example robots;
 no private controller, saved route file or checkpoint is needed. All available
 profiles are compared. Add `--profiles collision_only --speeds 0.5` for a shorter run.
 
@@ -71,7 +71,10 @@ Starting from the quick-start fenced pack and its retained source build:
 rmuc-field lite-pack ./runs/field-fenced ./runs/field-lite \
   --interactive-lite-faces 600000
 rmuc-field source-wall-pack ./runs/field-source ./runs/field-lite ./runs/field-contacts
+rmuc-field tunnel-pack ./runs/field-source ./runs/field-contacts ./runs/field-tunnels
 ```
+
+Apply the tunnel layer last. Run `check` on `./runs/field-tunnels` to include it.
 
 The suite also accepts other packs. Missing fence/wall layers are reported as
 `NOT_AVAILABLE`, making the overall result `PARTIAL`; they are not silently
@@ -126,6 +129,27 @@ recording the first blocking surface and return. Obstructed corners can contact
 terrain before reaching the fence; these are not full-robot access routes.
 Existing reference-floor differences are reported separately from dynamic passes.
 All available profiles use identical inputs and are compared step by step.
+
+## Tunnels
+
+Tunnel roofs are recorded by the heightfield as solid blocks. `tunnel-pack`
+lowers the heightfield under each roof's covered span to the channel floor and
+adds the roof slab as collision, both from the retained source build. The roofs
+are pinned per official STEP release (RMUC 2026: two per side; RMUC 2027: three
+per side, 800 mm channel, 350 mm metal roof, 250 mm clearance). Each replaced
+sample must match the source roof, so a changed drawing is rejected.
+
+```bash
+rmuc-field tunnel-pack ./runs/field-source ./local-rmuc2026-field ./runs/field-tunnels
+rmuc-field tunnel-check ./runs/field-tunnels --output ./runs/tunnels.json
+```
+
+`tunnel-check` slides a rigid block 30 mm lower than each roof's clearance along
+the channel in both directions; it must clear the roof without touching it. A
+block 30 mm taller must be stopped by the roof, and a ball must rest on its top.
+The report lists the simulated clearance per roof. The builder raises ground below
+the main floor to it, so a tunnel over tilted ground can show slightly less than
+the official 250 mm. Robot gaits through tunnels are not evaluated.
 
 ## Isolated stairs and ledges
 

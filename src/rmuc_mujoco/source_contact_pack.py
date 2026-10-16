@@ -81,6 +81,8 @@ def export_source_wall_pack(
     """
 
     asset = FieldAsset.open(runtime_pack, verify=True)
+    if asset.collision.get("tunnel_contact_layer") is not None:
+        raise ValueError("apply the source-wall layer before the tunnel layer")
     if asset.manifest["schema_version"] != 4:
         raise ValueError("source-wall export requires a schema-4 runtime pack")
     if asset.collision.get("source_contact_layer") is not None:

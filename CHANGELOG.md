@@ -16,6 +16,10 @@ does not remove the full field's `DRAFT_BLOCKED` status.
   build are unchanged.
 - Moved the fly-ramp modules to `rmuc_mujoco.seasons.rmuc2026`; the 1.x import
   paths still resolve. Fly-ramp scenarios are offered only on RMUC 2026 packs.
+- Registered RMUC 2027 (STEP V1.0.0, rulebook V1.0.0). Each STEP release pins its
+  visual mesh count, build GLB and tunnel roofs.
+- Added `tunnel-pack` and `tunnel-check`: tunnels in both seasons can be driven
+  through and over. `check` reports a tunnel section; spawn screening avoids roofs.
 
 ## [1.3.0] - 2026-10-09
 

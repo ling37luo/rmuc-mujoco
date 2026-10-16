@@ -24,10 +24,12 @@ from .candidate_registry_contract import (
     validate_candidate_registry,
 )
 from .download import OFFICIAL_STEP_SHA256
+from .seasons import RMUC2026
 
 
 # Part numbers mean anything only for this exact official STEP-derived GLB.
-SOURCE_GLB_SHA256 = "5bc8042c0fcb90e6f23f1f6624dbf8af1177b582a56254b4df092ee04ef23705"
+# The RMUC 2026 build GLB that the wall and edge evidence was audited against.
+SOURCE_GLB_SHA256 = RMUC2026.default_source.source_glb_sha256
 VERTICAL_BARRIER_PARTS = (269, 272, 308, 390, 391, 395, 396, 402, 403, 404)
 SCREENSHOT_SUPPORT_PART = 554
 SCREENSHOT_GRILLE_PART = 553

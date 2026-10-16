@@ -163,6 +163,13 @@ def build_parser() -> argparse.ArgumentParser:
     wall_pack.add_argument("source_build", type=Path)
     wall_pack.add_argument("runtime_pack", type=Path)
     wall_pack.add_argument("output", type=Path)
+    tunnel_pack = commands.add_parser(
+        "tunnel-pack",
+        help="make a local pack whose tunnels can be driven through (apply after source walls)",
+    )
+    tunnel_pack.add_argument("source_build", type=Path)
+    tunnel_pack.add_argument("runtime_pack", type=Path)
+    tunnel_pack.add_argument("output", type=Path)
     region = commands.add_parser(
         "training-region",
         help="export one local fly-ramp collision region from a verified field pack",
@@ -252,6 +259,12 @@ def build_parser() -> argparse.ArgumentParser:
     wall.add_argument("--output", type=Path, required=True)
     wall.add_argument("--speeds", type=float, nargs="+", default=[0.3, 0.5, 1.0])
     wall.add_argument("--profiles", choices=RUNTIME_PROFILE_NAMES, nargs="+")
+    tunnel = commands.add_parser(
+        "tunnel-check", help="probe passage under, blocking by and support on every tunnel roof"
+    )
+    tunnel.add_argument("asset", type=Path)
+    tunnel.add_argument("--output", type=Path, required=True)
+    tunnel.add_argument("--profiles", choices=RUNTIME_PROFILE_NAMES, nargs="+")
     for name, description in (
         ("corner-check", "public rover corner approach, contact and retreat"),
         ("check", "portable full-field contact and public interaction regression"),
@@ -649,6 +662,28 @@ def main(argv: list[str] | None = None) -> int:
                 )
             )
             return 0
+        if args.command == "tunnel-pack":
+            from .tunnel_contact import export_tunnel_pack
+
+            result = export_tunnel_pack(args.source_build, args.runtime_pack, args.output)
+            layer = result["collision"]["tunnel_contact_layer"]
+            print(
+                json.dumps(
+                    {
+                        "output": str(args.output.expanduser().resolve()),
+                        "season": layer["season"],
+                        "roofs": {
+                            roof["tunnel_id"]: {"clearance_m": roof["clearance_m"]}
+                            for roof in layer["roofs"]
+                        },
+                        "tunnel_layer_status": layer["status"],
+                        "validation_status": result["validation_status"],
+                    },
+                    indent=2,
+                    sort_keys=True,
+                )
+            )
+            return 0
         if args.command == "training-region":
             manifest = export_training_region(
                 FieldAsset.open(args.asset, verify=True),
@@ -750,11 +785,21 @@ def main(argv: list[str] | None = None) -> int:
             )
             print(f"Report: {args.output.expanduser().resolve()}")
             return 0 if payload["status"] == "PASS" else 2
-        if args.command in {"stairs-check", "perimeter-check", "wall-check", "corner-check"}:
+        if args.command in {
+            "stairs-check",
+            "perimeter-check",
+            "wall-check",
+            "corner-check",
+            "tunnel-check",
+        }:
             output = args.output.expanduser().resolve()
             if output.exists():
                 raise ValueError(f"output already exists: {output}")
-            if args.command == "stairs-check":
+            if args.command == "tunnel-check":
+                from .tunnel_check import run_tunnel_checks
+
+                payload = run_tunnel_checks(args.asset, profiles=args.profiles)
+            elif args.command == "stairs-check":
                 from .stairs import run_stair_checks
 
                 payload = run_stair_checks(args.asset, args.source_manifest, speeds=args.speeds)
