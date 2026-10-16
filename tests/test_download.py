@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import dataclasses
 import hashlib
 import io
 from pathlib import Path
@@ -7,15 +8,19 @@ from pathlib import Path
 import pytest
 
 import rmuc_mujoco.download as download
+from rmuc_mujoco.seasons import RMUC2026, FieldSource
 
 
 def _fixture_bytes() -> bytes:
     return b"ISO-10303-21;\nHEADER;\n00_RMUC2026_FINALS_ASM\nENDSEC;\n"
 
 
-def _patch_identity(monkeypatch: pytest.MonkeyPatch, payload: bytes) -> None:
-    monkeypatch.setattr(download, "OFFICIAL_STEP_SIZE", len(payload))
-    monkeypatch.setattr(download, "OFFICIAL_STEP_SHA256", hashlib.sha256(payload).hexdigest())
+def _fixture_source(payload: bytes) -> FieldSource:
+    pinned = RMUC2026.default_source
+    step = dataclasses.replace(
+        pinned.step, size_bytes=len(payload), sha256=hashlib.sha256(payload).hexdigest()
+    )
+    return dataclasses.replace(pinned, step=step)
 
 
 def _patch_rulebook_identity(monkeypatch: pytest.MonkeyPatch, payload: bytes) -> None:
@@ -39,7 +44,7 @@ def test_download_is_atomic_verified_and_reused(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     payload = _fixture_bytes()
-    _patch_identity(monkeypatch, payload)
+    source = _fixture_source(payload)
     calls = 0
 
     def fake_urlopen(_request: object, *, timeout: float) -> io.BytesIO:
@@ -56,10 +61,12 @@ def test_download_is_atomic_verified_and_reused(
         acknowledge_reference_only=True,
         timeout_seconds=9.0,
         progress=lambda current, total: progress.append((current, total)),
+        source=source,
     )
     second = download.download_official_step(
         destination,
         acknowledge_reference_only=True,
+        source=source,
     )
 
     assert first.path == destination.resolve()
@@ -74,28 +81,27 @@ def test_download_is_atomic_verified_and_reused(
 def test_bad_download_never_replaces_destination(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    payload = _fixture_bytes()
-    _patch_identity(monkeypatch, payload)
+    source = _fixture_source(_fixture_bytes())
     monkeypatch.setattr(download, "urlopen", lambda *_args, **_kwargs: io.BytesIO(b"bad"))
     destination = tmp_path / "field.step"
 
     with pytest.raises(download.DownloadError, match="size mismatch"):
-        download.download_official_step(destination, acknowledge_reference_only=True)
+        download.download_official_step(destination, acknowledge_reference_only=True, source=source)
 
     assert not destination.exists()
     assert not list(tmp_path.glob("*.part"))
 
 
-def test_verify_rejects_symlink(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_verify_rejects_symlink(tmp_path: Path) -> None:
     payload = _fixture_bytes()
-    _patch_identity(monkeypatch, payload)
+    source = _fixture_source(payload)
     real = tmp_path / "real.step"
     real.write_bytes(payload)
     link = tmp_path / "link.step"
     link.symlink_to(real)
 
     with pytest.raises(download.DownloadError, match="symlink"):
-        download.verify_official_step(link)
+        download.verify_official_step(link, source)
 
 
 def test_rulebook_download_is_atomic_verified_and_reused(

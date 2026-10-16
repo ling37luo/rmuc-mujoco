@@ -14,7 +14,7 @@ import zlib
 import numpy as np
 
 from .collision_candidate import SOURCE_GLB_SHA256
-from .download import OFFICIAL_STEP_SHA256, OFFICIAL_STEP_SIZE
+from .seasons import FieldSource, Season, season_of, source_for_step
 from .errors import AssetIntegrityError, ManifestError
 from .livery import (
     GROUND_MARKING_KNOWN_LIMITATIONS,
@@ -279,6 +279,19 @@ class FieldAsset:
         return tuple(self.manifest["visual_meshes"])
 
     @property
+    def field_source(self) -> FieldSource:
+        """The official STEP release this pack was built from."""
+
+        identity = self.manifest["source_identity"]
+        source = source_for_step(identity["official_step_sha256"])
+        assert source is not None  # enforced by _validate_identity
+        return source
+
+    @property
+    def season(self) -> Season:
+        return season_of(self.field_source)
+
+    @property
     def collision(self) -> Mapping[str, Any]:
         return self.manifest["collision"]
 
@@ -336,10 +349,19 @@ def _validate_identity(manifest: Mapping[str, Any]) -> None:
     if manifest.get("validation_status") != SUPPORTED_VALIDATION_STATUS:
         raise ManifestError("unsupported or overstated validation_status")
     source = _mapping(manifest.get("source_identity"), label="source_identity")
-    if source.get("official_step_sha256") != OFFICIAL_STEP_SHA256:
-        raise ManifestError("runtime pack is not bound to the expected official STEP hash")
-    if source.get("official_step_size_bytes") != OFFICIAL_STEP_SIZE:
+    field_source = source_for_step(source.get("official_step_sha256"))
+    if field_source is None:
+        raise ManifestError("runtime pack is not bound to a registered official STEP hash")
+    if source.get("official_step_size_bytes") != field_source.step.size_bytes:
         raise ManifestError("runtime pack has the wrong official STEP size identity")
+    # Packs from 1.x carry no season fields; when present they must agree with the STEP.
+    if "season" in source and source["season"] != field_source.season_id:
+        raise ManifestError("runtime pack season disagrees with its official STEP")
+    if (
+        "official_step_version" in source
+        and source["official_step_version"] != field_source.version
+    ):
+        raise ManifestError("runtime pack STEP version disagrees with its official STEP")
     if source.get("license_status") != "UNSPECIFIED":
         raise ManifestError("runtime pack must preserve the unspecified upstream asset license")
     if source.get("redistribution_authorized") is not False:

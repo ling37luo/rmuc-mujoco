@@ -16,9 +16,12 @@ from rmuc_mujoco.cli import (
     _start_display_key_listener,
     _viewer_physics_substeps,
     build_parser,
+    default_rulebook_cache,
+    default_step_cache,
     main,
 )
 from rmuc_mujoco.download import DownloadedRulebook
+from rmuc_mujoco.seasons import get_season
 
 
 def test_verify_cli_emits_machine_readable_pass(field_asset_dir: Path, capsys) -> None:
@@ -56,11 +59,20 @@ def test_source_cli_is_read_only_and_reports_unverified_redistribution(capsys) -
 
 def test_setup_cli_has_a_safe_user_cache_default() -> None:
     args = build_parser().parse_args(["setup", "local-field-pack"])
+    season = get_season(args.season)
 
-    assert args.step_cache.name == "RMUC2026_V2.0.0.stp"
-    assert args.step_cache.parent.name == "rmuc2026-mujoco"
-    assert args.rulebook_cache.name == "RMUC2026_rulebook_V2.0.0.pdf"
+    assert args.season == "rmuc2026"
+    assert args.step_cache is None and args.rulebook_cache is None
+    assert default_step_cache(season).name == "RMUC2026_V2.0.0.stp"
+    assert default_step_cache(season).parent.name == "rmuc2026-mujoco"
+    assert default_rulebook_cache(season).name == "RMUC2026_rulebook_V2.0.0.pdf"
     assert args.output == Path("local-field-pack")
+
+
+def test_build_commands_reject_unknown_seasons() -> None:
+    for command in (["setup", "pack"], ["build", "--step", "x", "--output", "y"], ["source"]):
+        with pytest.raises(SystemExit):
+            build_parser().parse_args([*command, "--season", "rmuc1999"])
 
 
 def test_view_cli_defaults_to_full_without_friction_override() -> None:
@@ -492,9 +504,10 @@ def test_setup_cli_downloads_then_builds_locally(
     output = tmp_path / "runtime-pack"
     calls: list[tuple[str, Path]] = []
 
-    def fake_download(destination, *, acknowledge_reference_only, progress):
+    def fake_download(destination, *, acknowledge_reference_only, progress, source):
         assert acknowledge_reference_only is True
         assert progress is not None
+        assert source is get_season("rmuc2026").default_source
         calls.append(("download", Path(destination)))
         return DownloadedStep(
             path=step,
@@ -512,6 +525,7 @@ def test_setup_cli_downloads_then_builds_locally(
             "include_surface_guide": False,
             "rulebook_pdf": None,
             "keep_source_build": tmp_path / "source" if keep_source else None,
+            "field_source": get_season("rmuc2026").default_source,
         }
         calls.append(("build", Path(output_dir)))
         return {

@@ -1,4 +1,4 @@
-"""Verified access to the official RMUC 2026 reference STEP.
+"""Verified access to the official RMUC reference STEP files.
 
 The STEP is downloaded from RoboMaster's own server and is never mirrored by
 this project.  Keeping this logic explicit avoids accidentally treating a
@@ -15,37 +15,28 @@ import tempfile
 from typing import BinaryIO, Callable
 from urllib.request import Request, urlopen
 
+from .seasons import RMUC2026, FieldSource, season_of
 
-OFFICIAL_STEP_URL = (
-    "https://hz-rm-bbs-web-prod.oss-cn-hangzhou.aliyuncs.com/"
-    "f637e13eadfc4602a76c7a05c54f71271782803452461/RMUC2026_V2.0.0.stp"
-)
-OFFICIAL_STEP_SIZE = 1_254_821_405
-OFFICIAL_STEP_SHA256 = "8dfe9ebd761e44d91361b3e593bc05416329112217b58cb35800b3cde2ffae33"
-OFFICIAL_STEP_PRODUCT = "00_RMUC2026_FINALS_ASM"
-OFFICIAL_SOURCE_PAGE = "https://bbs.robomaster.com/article/814728?source=8"
-OFFICIAL_RULE_CENTRE = "https://bbs.robomaster.com/wiki/20204847/809871?source=7"
-OFFICIAL_RULEBOOK_V2_0_0_URL = (
-    "https://bbs-web-static.robomaster.com/"
-    "5fbd46b110e542faaea519a6dd3065761782460789174/"
-    "RoboMaster%202026%20%E6%9C%BA%E7%94%B2%E5%A4%A7%E5%B8%88%E8%B6%85%E7%BA%A7%"
-    "E5%AF%B9%E6%8A%97%E8%B5%9B%E6%AF%94%E8%B5%9B%E8%A7%84%E5%88%99%E6%89%8B%"
-    "E5%86%8CV2.0.0%EF%BC%8820260626%EF%BC%89.pdf"
-)
-OFFICIAL_RULEBOOK_V2_0_0_SIZE = 21_012_597
-OFFICIAL_RULEBOOK_V2_0_0_SHA256 = "59d65aac5bac75fd6bbab157e224eb936b49cd2b9d60381fbe196fad635b473a"
-LAST_REVIEWED_RULEBOOK_VERSION = "V2.2.0"
-LAST_REVIEWED_RULEBOOK_PUBLICATION_DATE = "2026-08-07"
-LAST_REVIEWED_RULEBOOK_URL = (
-    "https://hz-rm-bbs-web-prod.oss-cn-hangzhou.aliyuncs.com/"
-    "e354d2750e17485e8f67e5b5a9d1a2891786094242879/"
-    "RoboMaster%202026%20%E6%9C%BA%E7%94%B2%E5%A4%A7%E5%B8%88%E8%B6%85%E7%BA%A7"
-    "%E5%AF%B9%E6%8A%97%E8%B5%9B%E6%AF%94%E8%B5%9B%E8%A7%84%E5%88%99%E6%89%8B"
-    "%E5%86%8CV2.2.0%EF%BC%8820260807%EF%BC%89.pdf"
-)
-LAST_REVIEWED_RULEBOOK_SIZE = 21_018_604
-LAST_REVIEWED_RULEBOOK_SHA256 = "88ae3c7d0bbd7312c8095eff2603910437e292a0b53f46c9378f26144c09a6f5"
-LAST_RULE_REVIEW_DATE = "2026-09-15"
+
+# 1.x module constants: the RMUC 2026 pins, kept for existing imports.
+_RMUC2026_STEP = RMUC2026.default_source
+_RMUC2026_GUIDE = RMUC2026.surface_guide
+_RMUC2026_REVIEWED = RMUC2026.last_reviewed_rulebook
+OFFICIAL_STEP_URL = _RMUC2026_STEP.step.url
+OFFICIAL_STEP_SIZE = _RMUC2026_STEP.step.size_bytes
+OFFICIAL_STEP_SHA256 = _RMUC2026_STEP.step.sha256
+OFFICIAL_STEP_PRODUCT = _RMUC2026_STEP.step_product
+OFFICIAL_SOURCE_PAGE = _RMUC2026_STEP.source_page
+OFFICIAL_RULE_CENTRE = RMUC2026.rule_centre
+OFFICIAL_RULEBOOK_V2_0_0_URL = _RMUC2026_GUIDE.file.url
+OFFICIAL_RULEBOOK_V2_0_0_SIZE = _RMUC2026_GUIDE.file.size_bytes
+OFFICIAL_RULEBOOK_V2_0_0_SHA256 = _RMUC2026_GUIDE.file.sha256
+LAST_REVIEWED_RULEBOOK_VERSION = _RMUC2026_REVIEWED.version
+LAST_REVIEWED_RULEBOOK_PUBLICATION_DATE = _RMUC2026_REVIEWED.publication_date
+LAST_REVIEWED_RULEBOOK_URL = _RMUC2026_REVIEWED.file.url
+LAST_REVIEWED_RULEBOOK_SIZE = _RMUC2026_REVIEWED.file.size_bytes
+LAST_REVIEWED_RULEBOOK_SHA256 = _RMUC2026_REVIEWED.file.sha256
+LAST_RULE_REVIEW_DATE = _RMUC2026_REVIEWED.review_date
 
 
 class DownloadError(RuntimeError):
@@ -78,7 +69,7 @@ def _sha256(path: Path, *, chunk_size: int = 8 * 1024 * 1024) -> str:
     return digest.hexdigest()
 
 
-def verify_official_step(path: Path) -> DownloadedStep:
+def verify_official_step(path: Path, source: FieldSource = _RMUC2026_STEP) -> DownloadedStep:
     """Verify the immutable size, header identity, and SHA-256 of the STEP."""
 
     requested = Path(path).expanduser()
@@ -88,17 +79,17 @@ def verify_official_step(path: Path) -> DownloadedStep:
     if not candidate.is_file():
         raise DownloadError(f"not a regular STEP file: {candidate}")
     size = candidate.stat().st_size
-    if size != OFFICIAL_STEP_SIZE:
-        raise DownloadError(f"STEP size mismatch: expected={OFFICIAL_STEP_SIZE}, actual={size}")
+    expected = source.step
+    if size != expected.size_bytes:
+        raise DownloadError(f"STEP size mismatch: expected={expected.size_bytes}, actual={size}")
     with candidate.open("rb") as handle:
         header = handle.read(64 * 1024).decode("latin-1", errors="replace")
-    if "ISO-10303-21" not in header or OFFICIAL_STEP_PRODUCT not in header:
-        raise DownloadError("STEP header does not identify the pinned RMUC 2026 Finals assembly")
+    if "ISO-10303-21" not in header or source.step_product not in header:
+        title = season_of(source).title
+        raise DownloadError(f"STEP header does not identify the pinned {title} field assembly")
     digest = _sha256(candidate)
-    if digest != OFFICIAL_STEP_SHA256:
-        raise DownloadError(
-            f"STEP SHA-256 mismatch: expected={OFFICIAL_STEP_SHA256}, actual={digest}"
-        )
+    if digest != expected.sha256:
+        raise DownloadError(f"STEP SHA-256 mismatch: expected={expected.sha256}, actual={digest}")
     return DownloadedStep(candidate, size, digest, reused=True)
 
 
@@ -132,6 +123,7 @@ def download_official_step(
     acknowledge_reference_only: bool,
     progress: Callable[[int, int], None] | None = None,
     timeout_seconds: float = 60.0,
+    source: FieldSource = _RMUC2026_STEP,
 ) -> DownloadedStep:
     """Download the pinned STEP directly from RoboMaster and verify it.
 
@@ -145,14 +137,14 @@ def download_official_step(
     if not acknowledge_reference_only:
         raise DownloadError(
             "explicit acknowledgement required: the official STEP is reference-only "
-            f"material; review {OFFICIAL_SOURCE_PAGE}"
+            f"material; review {source.source_page}"
         )
     requested = Path(destination).expanduser()
     if requested.is_symlink():
         raise DownloadError(f"destination must not be a symlink: {requested}")
     target = requested.resolve()
     if target.exists():
-        verified = verify_official_step(target)
+        verified = verify_official_step(target, source)
         return DownloadedStep(
             verified.path,
             verified.size_bytes,
@@ -163,7 +155,7 @@ def download_official_step(
     if target.parent.is_symlink():
         raise DownloadError(f"destination parent must not be a symlink: {target.parent}")
 
-    request = Request(OFFICIAL_STEP_URL, headers={"User-Agent": "rmuc-mujoco/0.2"})
+    request = Request(source.step.url, headers={"User-Agent": "rmuc-mujoco/0.2"})
     temporary_path: Path | None = None
     try:
         with tempfile.NamedTemporaryFile(
@@ -178,16 +170,16 @@ def download_official_step(
                 size, digest = _copy_and_hash(
                     response,
                     temporary,
-                    expected_size=OFFICIAL_STEP_SIZE,
+                    expected_size=source.step.size_bytes,
                     progress=progress,
                 )
-        if size != OFFICIAL_STEP_SIZE:
+        if size != source.step.size_bytes:
             raise DownloadError(
-                f"downloaded STEP size mismatch: expected={OFFICIAL_STEP_SIZE}, actual={size}"
+                f"downloaded STEP size mismatch: expected={source.step.size_bytes}, actual={size}"
             )
-        if digest != OFFICIAL_STEP_SHA256:
+        if digest != source.step.sha256:
             raise DownloadError(
-                f"downloaded STEP SHA-256 mismatch: expected={OFFICIAL_STEP_SHA256}, actual={digest}"
+                f"downloaded STEP SHA-256 mismatch: expected={source.step.sha256}, actual={digest}"
             )
         assert temporary_path is not None
         if target.exists():
@@ -196,7 +188,7 @@ def download_official_step(
             )
         os.replace(temporary_path, target)
         temporary_path = None
-        verified = verify_official_step(target)
+        verified = verify_official_step(target, source)
         return DownloadedStep(
             verified.path,
             verified.size_bytes,

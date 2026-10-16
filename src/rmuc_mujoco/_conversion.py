@@ -24,26 +24,20 @@ from typing import Any, Iterable
 import numpy as np
 
 from .ramp_audit import audit_fixed_fly_ramps
+from .seasons import RMUC2026, FieldSource, season_of, source_for_step
 
 
-OFFICIAL_STEP_URL = (
-    "https://hz-rm-bbs-web-prod.oss-cn-hangzhou.aliyuncs.com/"
-    "f637e13eadfc4602a76c7a05c54f71271782803452461/RMUC2026_V2.0.0.stp"
-)
-OFFICIAL_STEP_SIZE = 1_254_821_405
-OFFICIAL_STEP_SHA256 = "8dfe9ebd761e44d91361b3e593bc05416329112217b58cb35800b3cde2ffae33"
-EXPECTED_STEP_PRODUCT = "00_RMUC2026_FINALS_ASM"
-OFFICIAL_CORE_BATTLEFIELD_SIZE_M = (28.0, 15.0)
-OFFICIAL_RULEBOOK_URL = (
-    "https://bbs-web-static.robomaster.com/"
-    "5fbd46b110e542faaea519a6dd3065761782460789174/"
-    "RoboMaster%202026%20%E6%9C%BA%E7%94%B2%E5%A4%A7%E5%B8%88%E8%B6%85%E7%BA%A7%"
-    "E5%AF%B9%E6%8A%97%E8%B5%9B%E6%AF%94%E8%B5%9B%E8%A7%84%E5%88%99%E6%89%8B%"
-    "E5%86%8CV2.0.0%EF%BC%8820260626%EF%BC%89.pdf"
-)
-OFFICIAL_RULEBOOK_SIZE = 21_012_597
-OFFICIAL_RULEBOOK_SHA256 = "59d65aac5bac75fd6bbab157e224eb936b49cd2b9d60381fbe196fad635b473a"
-OFFICIAL_RULEBOOK_OVERHEAD_PDF_PAGE = 32
+_RMUC2026_STEP = RMUC2026.default_source
+_RMUC2026_GUIDE = RMUC2026.surface_guide
+OFFICIAL_STEP_URL = _RMUC2026_STEP.step.url
+OFFICIAL_STEP_SIZE = _RMUC2026_STEP.step.size_bytes
+OFFICIAL_STEP_SHA256 = _RMUC2026_STEP.step.sha256
+EXPECTED_STEP_PRODUCT = _RMUC2026_STEP.step_product
+OFFICIAL_CORE_BATTLEFIELD_SIZE_M = RMUC2026.core_battlefield_size_m
+OFFICIAL_RULEBOOK_URL = _RMUC2026_GUIDE.file.url
+OFFICIAL_RULEBOOK_SIZE = _RMUC2026_GUIDE.file.size_bytes
+OFFICIAL_RULEBOOK_SHA256 = _RMUC2026_GUIDE.file.sha256
+OFFICIAL_RULEBOOK_OVERHEAD_PDF_PAGE = _RMUC2026_GUIDE.overhead_pdf_page
 
 # The currently integrated Fudan wheel asset has a 120 mm wheel diameter.  A
 # height-field cell should be interpreted relative to that physical feature,
@@ -70,6 +64,7 @@ class StepIdentity:
     size_bytes: int
     sha256: str
     product: str
+    source: FieldSource = _RMUC2026_STEP
 
     def as_dict(self) -> dict[str, Any]:
         return {
@@ -77,7 +72,7 @@ class StepIdentity:
             "size_bytes": self.size_bytes,
             "sha256": self.sha256,
             "step_product": self.product,
-            "official_download_url": OFFICIAL_STEP_URL,
+            "official_download_url": self.source.step.url,
         }
 
 
@@ -94,22 +89,28 @@ def _step_header(path: Path, *, limit: int = 64 * 1024) -> str:
         return handle.read(limit).decode("latin-1", errors="replace")
 
 
-def validate_official_step(path: Path, *, verify_hash: bool = True) -> StepIdentity:
+def validate_official_step(
+    path: Path,
+    *,
+    verify_hash: bool = True,
+    field_source: FieldSource = _RMUC2026_STEP,
+) -> StepIdentity:
     source = Path(path).expanduser().resolve()
     if not source.is_file():
         raise FieldBuildError(f"官方STEP不是常规文件：{source}")
+    expected = field_source.step
     size = source.stat().st_size
-    if size != OFFICIAL_STEP_SIZE:
-        raise FieldBuildError(f"官方STEP大小不匹配：expected={OFFICIAL_STEP_SIZE}, actual={size}")
+    if size != expected.size_bytes:
+        raise FieldBuildError(f"官方STEP大小不匹配：expected={expected.size_bytes}, actual={size}")
     header = _step_header(source)
-    if "ISO-10303-21" not in header or EXPECTED_STEP_PRODUCT not in header:
-        raise FieldBuildError("STEP头不含官方RMUC 2026 Finals装配体身份")
+    if "ISO-10303-21" not in header or field_source.step_product not in header:
+        raise FieldBuildError(f"STEP头不含官方{season_of(field_source).title}场地装配体身份")
     digest = sha256_file(source) if verify_hash else "NOT_COMPUTED"
-    if verify_hash and digest != OFFICIAL_STEP_SHA256:
+    if verify_hash and digest != expected.sha256:
         raise FieldBuildError(
-            f"官方STEP SHA-256不匹配：expected={OFFICIAL_STEP_SHA256}, actual={digest}"
+            f"官方STEP SHA-256不匹配：expected={expected.sha256}, actual={digest}"
         )
-    return StepIdentity(source, size, digest, EXPECTED_STEP_PRODUCT)
+    return StepIdentity(source, size, digest, field_source.step_product, field_source)
 
 
 def validate_official_rulebook(path: Path, *, verify_hash: bool = True) -> Path:
@@ -546,8 +547,13 @@ def _load_geometry_only(step_path: Path) -> tuple[Any, Any, dict[str, Any]]:
     )
 
 
-def audit_step(step_path: Path, *, verify_hash: bool = True) -> dict[str, Any]:
-    identity = validate_official_step(step_path, verify_hash=verify_hash)
+def audit_step(
+    step_path: Path,
+    *,
+    verify_hash: bool = True,
+    field_source: FieldSource = _RMUC2026_STEP,
+) -> dict[str, Any]:
+    identity = validate_official_step(step_path, verify_hash=verify_hash, field_source=field_source)
     _document, _shape, geometry = _load_geometry_only(identity.path)
     return {
         "schema_version": 1,
@@ -1736,11 +1742,10 @@ def _verified_repack_input(base_build: Path) -> tuple[dict[str, Any], Path, str,
         manifest.get("artifact_type") != "rmuc2026_official_field_mujoco_asset"
         or manifest.get("status") != "PASS"
         or not isinstance(source, dict)
-        or source.get("sha256") != OFFICIAL_STEP_SHA256
-        or source.get("size_bytes") != OFFICIAL_STEP_SIZE
-        or source.get("step_product") != EXPECTED_STEP_PRODUCT
+        or (registered := source_for_step(source.get("sha256"), source.get("size_bytes"))) is None
+        or source.get("step_product") != registered.step_product
     ):
-        raise FieldBuildError("重打包输入未绑定通过的官方RMUC 2026 V2.0.0 Finals STEP")
+        raise FieldBuildError("重打包输入未绑定已登记赛季的通过官方STEP")
     conversion = manifest.get("conversion")
     if not isinstance(conversion, dict):
         raise FieldBuildError("重打包输入缺少转换合同")
@@ -2003,6 +2008,7 @@ def build_field(
     heightfield_resolution_m: float = RECOMMENDED_HEIGHTFIELD_RESOLUTION_M,
     preserve_cad_colors: bool = True,
     include_edge_void: bool = False,
+    field_source: FieldSource = _RMUC2026_STEP,
 ) -> dict[str, Any]:
     from OCP.BRepMesh import BRepMesh_IncrementalMesh
     from OCP.Message import Message_ProgressRange
@@ -2024,7 +2030,7 @@ def build_field(
         raise FieldBuildError(f"输出目录已存在，拒绝覆盖：{output}")
     output.mkdir(parents=True)
     started = time.monotonic()
-    identity = validate_official_step(step_path, verify_hash=True)
+    identity = validate_official_step(step_path, verify_hash=True, field_source=field_source)
     if preserve_cad_colors:
         document, shape, audit = _load_xcaf(identity.path)
         audit["appearance_metadata_preserved"] = True

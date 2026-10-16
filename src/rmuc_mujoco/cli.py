@@ -16,17 +16,6 @@ import numpy as np
 from .builder import BuilderUnavailable, build_runtime_asset_pack
 from .control import NoOpController, load_controller
 from .download import (
-    LAST_REVIEWED_RULEBOOK_PUBLICATION_DATE,
-    LAST_REVIEWED_RULEBOOK_SHA256,
-    LAST_REVIEWED_RULEBOOK_SIZE,
-    LAST_REVIEWED_RULEBOOK_URL,
-    LAST_REVIEWED_RULEBOOK_VERSION,
-    LAST_RULE_REVIEW_DATE,
-    OFFICIAL_RULE_CENTRE,
-    OFFICIAL_SOURCE_PAGE,
-    OFFICIAL_STEP_SHA256,
-    OFFICIAL_STEP_SIZE,
-    OFFICIAL_STEP_URL,
     DownloadError,
     download_official_rulebook_v2_0_0,
     download_official_step,
@@ -48,6 +37,7 @@ from .query import (
 )
 from .ramp_source_audit import audit_fly_ramp_source_overlap
 from .scenarios import get_scenario, list_scenarios, scenario_descriptor
+from .seasons import DEFAULT_SEASON_ID, Season, get_season, season_ids
 from .slope_catalog import slope_catalog
 from .source_contact_pack import export_source_wall_pack
 from .turning import reset_turn_spawn, run_turn_batch, screen_turn_spawns
@@ -62,14 +52,40 @@ from .viewer import (
 )
 
 
+# Kept from 1.x so an existing 2026 cache is reused; files are named per release.
+STEP_CACHE_DIR = Path.home() / ".cache/rmuc2026-mujoco"
+
+
+def _add_season_option(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument(
+        "--season",
+        choices=season_ids(),
+        default=DEFAULT_SEASON_ID,
+        help="official season whose pinned field drawing to use (default: %(default)s)",
+    )
+
+
+def default_step_cache(season: Season) -> Path:
+    return STEP_CACHE_DIR / Path(season.default_source.step.url).name
+
+
+def default_rulebook_cache(season: Season) -> Path | None:
+    if season.surface_guide is None:
+        return None
+    return STEP_CACHE_DIR / f"{season.id.upper()}_rulebook_{season.surface_guide.version}.pdf"
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="rmuc-field")
     commands = parser.add_subparsers(dest="command", required=True)
-    commands.add_parser("source", help="print the pinned official source identity")
+    source = commands.add_parser("source", help="print the pinned official source identity")
+    _add_season_option(source)
     download = commands.add_parser("download", help="download directly from the official URL")
     download.add_argument("destination", type=Path)
     download.add_argument("--acknowledge-reference-only", action="store_true")
+    _add_season_option(download)
     build = commands.add_parser("build", help="build a local runtime pack from a verified STEP")
+    _add_season_option(build)
     build.add_argument("--step", type=Path, required=True)
     build.add_argument("--output", type=Path, required=True)
     build.add_argument("--target-visual-faces", type=int, default=2_300_000)
@@ -95,10 +111,11 @@ def build_parser() -> argparse.ArgumentParser:
         help="download the pinned official STEP and build a local runtime pack",
     )
     setup.add_argument("output", type=Path)
+    _add_season_option(setup)
     setup.add_argument(
         "--step-cache",
         type=Path,
-        default=Path.home() / ".cache/rmuc2026-mujoco/RMUC2026_V2.0.0.stp",
+        help="local STEP cache (default: a per-release file under ~/.cache/rmuc2026-mujoco)",
     )
     # ``setup`` itself is an explicit request to fetch the official reference
     # into a local cache.  Keep accepting the older acknowledgement flag so
@@ -125,7 +142,6 @@ def build_parser() -> argparse.ArgumentParser:
     setup.add_argument(
         "--rulebook-cache",
         type=Path,
-        default=Path.home() / ".cache/rmuc2026-mujoco/RMUC2026_rulebook_V2.0.0.pdf",
         help="verified local cache used only when --include-surface-guide is selected",
     )
     for name in ("verify", "info"):
@@ -445,30 +461,34 @@ def main(argv: list[str] | None = None) -> int:
             print(json.dumps({k: result[k] for k in ("status", "medians")}, indent=2))
             return 0 if result["status"] == "PASS" else 2
         if args.command == "source":
+            season = get_season(args.season)
+            field_source = season.default_source
+            reviewed = season.last_reviewed_rulebook
             print(
                 json.dumps(
                     {
+                        "season": season.id,
+                        "registered_seasons": list(season_ids()),
                         "download_started": False,
                         "included_in_package": False,
-                        "official_source_page": OFFICIAL_SOURCE_PAGE,
-                        "official_step_sha256": OFFICIAL_STEP_SHA256,
-                        "official_step_size_bytes": OFFICIAL_STEP_SIZE,
-                        "official_step_url": OFFICIAL_STEP_URL,
+                        "official_source_page": field_source.source_page,
+                        "official_step_version": field_source.version,
+                        "official_step_sha256": field_source.step.sha256,
+                        "official_step_size_bytes": field_source.step.size_bytes,
+                        "official_step_url": field_source.step.url,
                         "license_review": "NO_EXPLICIT_GRANT_FOUND",
                         "redistribution_authorized": False,
                         "redistribution_permission": "UNVERIFIED",
                         "rulebook_review": {
-                            "reviewed_on": LAST_RULE_REVIEW_DATE,
-                            "official_rule_centre": OFFICIAL_RULE_CENTRE,
-                            "latest_reviewed_version": LAST_REVIEWED_RULEBOOK_VERSION,
-                            "latest_reviewed_publication_date": (
-                                LAST_REVIEWED_RULEBOOK_PUBLICATION_DATE
-                            ),
-                            "latest_reviewed_url": LAST_REVIEWED_RULEBOOK_URL,
-                            "latest_reviewed_size_bytes": LAST_REVIEWED_RULEBOOK_SIZE,
-                            "latest_reviewed_sha256": LAST_REVIEWED_RULEBOOK_SHA256,
+                            "reviewed_on": reviewed.review_date,
+                            "official_rule_centre": season.rule_centre,
+                            "latest_reviewed_version": reviewed.version,
+                            "latest_reviewed_publication_date": reviewed.publication_date,
+                            "latest_reviewed_url": reviewed.file.url,
+                            "latest_reviewed_size_bytes": reviewed.file.size_bytes,
+                            "latest_reviewed_sha256": reviewed.file.sha256,
                             "comparison_scope": "rulebook_chapter_4_only",
-                            "static_field_chapter_vs_v2_0_0": "NO_CHANGE_DETECTED",
+                            **dict(reviewed.field_chapter_findings),
                             "comparison_method": "normalised_text_and_embedded_image_hashes",
                             "mechanical_certification": False,
                             "future_updates_require_new_review": True,
@@ -484,6 +504,7 @@ def main(argv: list[str] | None = None) -> int:
                 args.destination,
                 acknowledge_reference_only=args.acknowledge_reference_only,
                 progress=_terminal_progress,
+                source=get_season(args.season).default_source,
             )
             print(
                 json.dumps(
@@ -504,6 +525,7 @@ def main(argv: list[str] | None = None) -> int:
                 raise ValueError("--experimental-edge-void requires --heightfield-resolution 0.01")
             if args.include_surface_guide and args.rulebook is None:
                 raise ValueError("--rulebook is required with --include-surface-guide for build")
+            _require_surface_guide(args)
             result = build_runtime_asset_pack(
                 args.step,
                 args.output,
@@ -513,6 +535,7 @@ def main(argv: list[str] | None = None) -> int:
                 include_surface_guide=args.include_surface_guide,
                 rulebook_pdf=args.rulebook,
                 keep_source_build=args.keep_source_build,
+                field_source=get_season(args.season).default_source,
             )
             print(
                 json.dumps(
@@ -531,15 +554,18 @@ def main(argv: list[str] | None = None) -> int:
             _validate_build_options(args.target_visual_faces, args.heightfield_resolution)
             if args.experimental_edge_void and args.heightfield_resolution != 0.01:
                 raise ValueError("--experimental-edge-void requires --heightfield-resolution 0.01")
+            season = get_season(args.season)
+            _require_surface_guide(args)
             downloaded = download_official_step(
-                args.step_cache,
+                args.step_cache or default_step_cache(season),
                 acknowledge_reference_only=True,
                 progress=_terminal_progress,
+                source=season.default_source,
             )
             downloaded_rulebook = None
             if args.include_surface_guide:
                 downloaded_rulebook = download_official_rulebook_v2_0_0(
-                    args.rulebook_cache,
+                    args.rulebook_cache or default_rulebook_cache(season),
                     acknowledge_reference_only=True,
                     progress=_terminal_progress,
                 )
@@ -554,6 +580,7 @@ def main(argv: list[str] | None = None) -> int:
                 rulebook_pdf=(
                     downloaded_rulebook.path if downloaded_rulebook is not None else None
                 ),
+                field_source=season.default_source,
             )
             print(
                 json.dumps(
@@ -1297,6 +1324,12 @@ def _viewer_physics_substeps(timestep_s: float) -> int:
     """Advance about one display frame without making a tiny timestep unbounded."""
 
     return min(256, max(1, round(1.0 / (60.0 * timestep_s))))
+
+
+def _require_surface_guide(args: argparse.Namespace) -> None:
+    season = get_season(args.season)
+    if args.include_surface_guide and season.surface_guide is None:
+        raise ValueError(f"--include-surface-guide is not available for {season.title}")
 
 
 def _validate_build_options(target_visual_faces: int, heightfield_resolution: float) -> None:

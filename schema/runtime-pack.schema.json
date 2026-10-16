@@ -31,10 +31,15 @@
         "asset_included_in_source_repository"
       ],
       "properties": {
-        "official_step_sha256": {
-          "const": "8dfe9ebd761e44d91361b3e593bc05416329112217b58cb35800b3cde2ffae33"
+        "season": {
+          "description": "Absent in 1.x packs, which are identified by official_step_sha256.",
+          "enum": ["rmuc2026"]
         },
-        "official_step_size_bytes": {"const": 1254821405},
+        "official_step_version": {"type": "string", "minLength": 1},
+        "official_step_sha256": {
+          "enum": ["8dfe9ebd761e44d91361b3e593bc05416329112217b58cb35800b3cde2ffae33"]
+        },
+        "official_step_size_bytes": {"type": "integer", "minimum": 1},
         "license_status": {"const": "UNSPECIFIED"},
         "redistribution_authorized": {"const": false},
         "asset_included_in_source_repository": {"const": false}

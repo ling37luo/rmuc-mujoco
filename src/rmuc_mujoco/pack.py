@@ -21,6 +21,7 @@ from .livery import (
     SOURCE_SURFACE_GUIDE_KIND,
     mask_rulebook_page_edge,
 )
+from .seasons import source_for_step
 from .wall_tip_repair import validate_wall_tip_repair_record
 
 
@@ -870,7 +871,7 @@ def _load_source_contract(field_build: Path) -> tuple[Path, Path, dict[str, Any]
         raise ExportBlocked(f"源manifest无法解析：{exc}") from exc
     manifest = _json_object(manifest, "源manifest")
     if manifest.get("artifact_type") != EXPECTED_ARTIFACT_TYPE:
-        raise ExportBlocked("源产物类型不是RMUC 2026官方场地MuJoCo资产")
+        raise ExportBlocked("源产物类型不是RMUC官方场地MuJoCo资产")
     if manifest.get("status") != "PASS":
         raise ExportBlocked("源场地构建完整性状态不是PASS")
     scope = _json_object(manifest.get("validation_scope"), "validation_scope")
@@ -1304,6 +1305,11 @@ def export_runtime_asset_pack(
         files.extend(livery_files)
 
         source_identity = _json_object(source_manifest.get("source"), "source")
+        field_source = source_for_step(
+            source_identity.get("sha256"), source_identity.get("size_bytes")
+        )
+        if field_source is None:
+            raise ExportBlocked("源场地未绑定已登记赛季的官方STEP")
         scope = _json_object(source_manifest.get("validation_scope"), "validation_scope")
         recommended_spawn = _json_object(
             source_manifest.get("recommended_spawn"), "recommended_spawn"
@@ -1375,6 +1381,8 @@ def export_runtime_asset_pack(
             "status": "PASS",
             "validation_status": "DRAFT_BLOCKED",
             "source_identity": {
+                "season": field_source.season_id,
+                "official_step_version": field_source.version,
                 "field_manifest_sha256": sha256_file(source_manifest_path),
                 "field_artifact_type": source_manifest["artifact_type"],
                 "field_build_status": source_manifest["status"],

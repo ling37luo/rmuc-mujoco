@@ -7,6 +7,8 @@ import shutil
 import tempfile
 from typing import Any
 
+from .seasons import RMUC2026, FieldSource
+
 
 class BuilderUnavailable(RuntimeError):
     """Raised when optional CAD conversion dependencies are unavailable."""
@@ -19,6 +21,7 @@ def build_from_official_step(
     target_visual_faces: int = 2_300_000,
     heightfield_resolution_m: float = 0.02,
     include_edge_void: bool = False,
+    field_source: FieldSource = RMUC2026.default_source,
 ) -> dict[str, Any]:
     """Build the field locally; no official or derived asset is uploaded.
 
@@ -41,6 +44,7 @@ def build_from_official_step(
         heightfield_resolution_m=heightfield_resolution_m,
         preserve_cad_colors=True,
         include_edge_void=include_edge_void,
+        field_source=field_source,
     )
 
 
@@ -55,6 +59,7 @@ def build_runtime_asset_pack(
     rulebook_pdf: Path | None = None,
     minimum_free_bytes: int = 5 * 1024**3,
     keep_source_build: Path | None = None,
+    field_source: FieldSource = RMUC2026.default_source,
 ) -> dict[str, Any]:
     """Create a runtime pack, optionally retaining source geometry for audits.
 
@@ -94,6 +99,7 @@ def build_runtime_asset_pack(
             target_visual_faces=target_visual_faces,
             heightfield_resolution_m=heightfield_resolution_m,
             include_edge_void=include_edge_void,
+            field_source=field_source,
         )
         export_source = full_build
         if include_surface_guide:
