@@ -8,9 +8,9 @@ RL framework. This plan has six tasks; it does not require training a new policy
 
 Version 1.3.0 includes local field construction, external robot/controller
 composition, turning and slope batches, fly-ramp regions and an Isaac data
-handoff. The seven-section static regression passes on the tested local pack,
-including source-bound isolated stairs, perimeter, reachable corners, walls and
-profile comparisons. Robot task failures remain separate from contact checks.
+handoff. The static regression passes on the tested local pack, including
+source-bound isolated stairs, perimeter, reachable corners, walls, high points
+and profile comparisons. Robot task failures remain separate from contact checks.
 Whole-field static contact remains incomplete; complex stair assemblies remain
 outside that validation. This release also includes a repeatable public-rover
 performance matrix, visible frame measurements and PhysX region probes through
@@ -24,9 +24,9 @@ performance matrix, visible frame measurements and PhysX region probes through
 | 2 | Stair approaches, risers and landing transitions | High | Complete for isolated source routes |
 | 3 | Perimeter corners and deck-to-fence transitions | High | Complete for selected deck strips and reachable corner routes |
 | 4 | Wall contact and collision ownership | High | Complete for source-bound side/end and junction routes |
-| 5 | Portable full-field interaction regression | After 2–4 | Complete; seven-section `check` suite with public robots and generated routes |
+| 5 | Portable full-field interaction regression | After 2–4 | Complete; sectioned `check` suite with public robots and generated routes |
 | 6 | Parallel performance and profile selection | After baseline regression | Complete for MuJoCo 1/4/16 environments, visible profile comparison and PhysX region contact through 64 |
-| 7 | Multi-season fields (RMUC 2027) | Next | Registry, 2027 source and tunnel collision (both seasons) complete; high-point stairs and 2027 source checks open |
+| 7 | Multi-season fields (RMUC 2027) | Next | Registry, 2027 source and tunnel collision (both seasons) and the high-point stairs and routes complete; 2027 source checks and a tunnel training scenario open |
 
 ### 1. Public documentation
 
@@ -115,9 +115,11 @@ measurements. Detailed hardware results stay in local reports.
 season-only features; a pack's season follows from its STEP hash. RMUC 2026 and
 RMUC 2027 (STEP V1.0.0, rulebook V1.0.0 of 2026-10-15) are registered, and the
 fly-ramp code lives in `seasons/rmuc2026`. `tunnel-pack` gives both seasons'
-tunnels source-derived roofs over a lowered channel floor. Remaining for 2027:
-the three-step high point, the 2027 source-part data for stair/wall/edge checks,
-and a tunnel training scenario (through and over).
+tunnels source-derived roofs over a lowered channel floor. `high-point-check`
+measures each 2027 high point against the drawing, probes its levels and risers,
+and publishes the two flights of each high point as climb routes for
+`high_point_basic`. Remaining for 2027: the 2027 source-part data for
+stair/wall/edge checks, and a tunnel training scenario (through and over).
 
 Done when a 2027 pack passes `check` with those sections available.
 

@@ -20,6 +20,7 @@ if TYPE_CHECKING:
 # for it lazily, so other seasons never load it.
 FLY_RAMPS = "fly_ramps"
 TUNNELS = "tunnels"
+HIGH_POINTS = "high_points"
 
 
 @dataclass(frozen=True)
@@ -60,6 +61,35 @@ class TunnelRoof:
 
 
 @dataclass(frozen=True)
+class HighPoint:
+    """One 制高点: an 800 mm platform reached by climbing three 200 mm steps.
+
+    Rulebook 4.2.4 places the high point in the base area and joins it to the
+    trapezoid highland with three steps; figure 4-17 dimensions them as 200 mm
+    risers with 300 mm treads.  The platform and its steps are drawn in the
+    source and the collision heightfield already represents them, so the record
+    pins where to measure and what the build must reproduce; it never changes
+    field geometry.
+    """
+
+    high_point_id: str
+    # CAD-frame box (x0, x1, y0, y1) around the platform and both step flights.
+    search_box_xy_m: tuple[float, float, float, float]
+    # Levels above the base-area floor around the high point, not above z = 0.
+    platform_top_m: float
+    step_rise_m: float
+    step_tread_m: float
+    # The level the trapezoid highland sits at, where the three-step flight lands.
+    highland_level_m: float
+    highland_step_count: int
+    floor_step_count: int
+    # Unit XY direction, from the platform centre, of each flight in the drawing.
+    # Each flight descends along its own direction, so a climb runs the other way.
+    highland_flight_xy: tuple[float, float]
+    floor_flight_xy: tuple[float, float]
+
+
+@dataclass(frozen=True)
 class FieldSource:
     """One official STEP release of a season's field drawing."""
 
@@ -75,6 +105,7 @@ class FieldSource:
     # checks address its parts by index.
     source_glb_sha256: str
     tunnel_roofs: tuple[TunnelRoof, ...] = ()
+    high_points: tuple[HighPoint, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -151,7 +182,9 @@ def season_of(source: FieldSource) -> Season:
 __all__ = [
     "DEFAULT_SEASON_ID",
     "FLY_RAMPS",
+    "HIGH_POINTS",
     "FieldSource",
+    "HighPoint",
     "OfficialFile",
     "RMUC2026",
     "RMUC2027",

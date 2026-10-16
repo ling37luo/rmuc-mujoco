@@ -20,6 +20,20 @@ does not remove the full field's `DRAFT_BLOCKED` status.
   visual mesh count, build GLB and tunnel roofs.
 - Added `tunnel-pack` and `tunnel-check`: tunnels in both seasons can be driven
   through and over. `check` reports a tunnel section; spawn screening avoids roofs.
+- Added `high-point-check` and the `high_point_basic` scenario for the RMUC 2027
+  high points. It measures every level and both flights of each high point,
+  audits them against the source surface, drops a rigid block on every level and
+  drives a sled at the outermost riser of each flight, then publishes the four
+  climbs as route records that `run` and `view` accept. `check` reports a
+  high-point section. Field geometry is unchanged.
+  Measured against the drawing: the highland flight's 300 mm treads and both
+  flights' 200 mm risers and 600/800 mm totals are reproduced, while the drawn
+  floor flight's treads measure about 305 mm. The check compares each tread
+  against the 300 mm reference with a 15 mm tolerance, so the report prints the
+  measured value instead of rounding the difference away.
+- `run` accepts any published route catalog by the `scenario_id` it names, so a
+  `high-point-check` report drives `high_point_basic` batches and viewer sessions
+  directly. The trajectory-directory guard names the scenario it found.
 
 ## [1.3.0] - 2026-10-09
 

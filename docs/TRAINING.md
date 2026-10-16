@@ -183,6 +183,60 @@ Keep the report local and use a new filename for another contact check. The
 catalog is bound to its field pack. Coverage is limited to selected isolated
 steps; compound stairs, adjacent walls and multilevel structures are not certified.
 
+## High points (制高点, RMUC 2027)
+
+A 2027 high point is an 800 mm platform in each base area, joined to the
+trapezoid highland by the three 200 mm steps of rulebook figure 4-17 section A-A,
+with a four-step flight down to the base-area floor as section B-B. Both flights
+are drawn in the official source and the collision heightfield already carries
+them; `high-point-check` measures the built field against that record, probes it,
+and publishes the climbs as routes in the same report:
+
+```bash
+rmuc-field high-point-check ./local-rmuc2027-field \
+  --source-manifest ./runs/field-source/manifest.json --output ./runs/high_point.json
+rmuc-field run ./local-rmuc2027-field --scenario high_point_basic \
+  --route-catalog ./runs/high_point.json --directions uphill --speeds 0.3 0.5
+rmuc-field view ./local-rmuc2027-field --scenario high_point_basic \
+  --route-catalog ./runs/high_point.json --patch high_point_red_highland
+```
+
+The check measures every level and both flights, compares the measured treads and
+risers with the recorded dimensions and with the source surface, then drops a
+rigid block on each level and drives a sled at the outermost riser of each
+flight. The block must rest where the pack declares the surface and at that
+level's own design height; the sled must reach the riser's face and be held
+there, because a 200 mm face stops a body while a 200 mm ramp lets it through.
+A high point is climbed rather than driven, so no wheel probe is used: the
+question is whether the steps exist and are level, not whether a given robot can
+mount them. The report states `geometry_modified: false`; the source build is
+read for the audit only.
+
+Two routes come out of each high point, one per flight: `*_highland` starts on
+the highland and climbs to the platform, `*_floor` starts on the base-area floor.
+As with the stair routes, the named low end is where an uphill run starts and
+`uphill_unit_xy` is the direction it drives, so `--directions uphill` drives at
+the steps and `--directions downhill` starts on the platform.
+
+The included four-wheel rover has 160 mm wheels, so it tips on a 200 mm riser in
+both directions and `run` reports `robot_tipped` for it. That is the rover's
+limit, not the route's: the check above does not depend on which robot you
+drive, and the routes are for a robot that can mount the steps. Use
+`--robot` and `--controller` to drive your own.
+
+Each level is compared after removing a locally fitted platform plane. The
+recovered battlefield carries a shallow camber — about 2.6 % in y, with opposite
+signs at the two ends — so raw absolute heights drift by tens of millimetres
+across one high point.
+
+The highland flight's treads measure the figure's 300 mm reference to a tenth of
+a millimetre. The floor flight's do not: the drawn B-B treads measure about
+305 mm, and the check accepts them because its tread tolerance is 15 mm around
+the 300 mm reference. Both flight totals still match their reference exactly
+(600 mm and 800 mm), which is what the extra 5 mm per tread is absorbed into.
+The report prints the measured treads, so the difference is visible rather than
+rounded away.
+
 ## Ordinary slopes
 
 Inspect the available routes, then run the included four-wheel rover:

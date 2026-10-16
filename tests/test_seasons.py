@@ -50,7 +50,10 @@ def test_rmuc2027_is_registered_without_2026_features() -> None:
     assert source_for_step(source.step.sha256, source.step.size_bytes) is source
     assert not RMUC2027.has(FLY_RAMPS)
     assert RMUC2027.surface_guide is None
-    assert scenarios_for(RMUC2027) is BASE_SCENARIOS
+    # The 2027 table keeps every core scenario and adds only the high point.
+    table = scenarios_for(RMUC2027)
+    assert set(table) == set(BASE_SCENARIOS) | {"high_point_basic"}
+    assert all(table[name] is spec for name, spec in BASE_SCENARIOS.items())
 
 
 def test_every_registered_source_has_a_unique_step_identity() -> None:

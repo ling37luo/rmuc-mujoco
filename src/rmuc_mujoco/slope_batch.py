@@ -15,7 +15,7 @@ from .manifest import FieldAsset
 from .scenarios import scenario_descriptor
 from .slope_catalog import slope_catalog
 from .slope_routes import select_slope_route
-from .slope_runtime import SlopeSession
+from .slope_runtime import CATALOG_PREFIXES, SlopeSession, load_route_catalog
 from .training import _cpu_rss_bytes
 
 
@@ -221,14 +221,15 @@ def run_slope_batch(
     if (robot is None) != (controller is None):
         raise ValueError("provide both --robot and --controller, or neither for the example rover")
     field = asset if isinstance(asset, FieldAsset) else FieldAsset.open(asset, verify=True)
-    scenario_id = "slope_basic"
     if route_catalog is None:
         catalog = slope_catalog(field)
+        # The ordinary-slope catalog is the session's default and names no
+        # scenario of its own.
+        scenario_id, prefix = "slope_basic", "slope"
     else:
-        from .stairs import load_stair_catalog
-
-        catalog = load_stair_catalog(field, route_catalog)
-        scenario_id = "stairs_basic"
+        catalog = load_route_catalog(field, route_catalog)
+        scenario_id = str(catalog["scenario_id"])
+        prefix = CATALOG_PREFIXES.get(scenario_id, "slope")
     cases = slope_cases(
         catalog,
         patches=patches,
@@ -238,22 +239,18 @@ def run_slope_batch(
         seed=seed,
         duration_s=duration_s,
     )
-    if scenario_id == "stairs_basic":
+    if prefix != "slope":
         for case in cases:
-            case["case_id"] = case["case_id"].replace("slope_", "stairs_", 1)
+            case["case_id"] = case["case_id"].replace("slope_", f"{prefix}_", 1)
     workers_used = min(workers, len(cases))
     trajectory_path = (
         None if trajectory_dir is None else Path(trajectory_dir).expanduser().resolve()
     )
     if trajectory_path is not None:
         trajectory_path.mkdir(parents=True, exist_ok=True)
-        if any(
-            trajectory_path.glob(
-                "stairs_*.json" if scenario_id == "stairs_basic" else "slope_*.json"
-            )
-        ):
+        if any(trajectory_path.glob(f"{prefix}_*.json")):
             raise ValueError(
-                "trajectory directory already contains slope episodes; choose a new directory"
+                f"trajectory directory already contains {prefix} episodes; choose a new directory"
             )
     common = {
         "asset_root": str(field.root),
@@ -262,7 +259,9 @@ def run_slope_batch(
         "profile": profile,
         "progress": progress,
         "trajectory_dir": None if trajectory_path is None else str(trajectory_path),
-        "route_catalog": catalog if scenario_id == "stairs_basic" else None,
+        # A named catalog travels to the worker; the default slope catalog is
+        # rebuilt there, so it is not shipped.
+        "route_catalog": None if route_catalog is None else catalog,
     }
     payloads = [
         {**common, "worker_index": i, "cases": cases[i::workers_used]} for i in range(workers_used)

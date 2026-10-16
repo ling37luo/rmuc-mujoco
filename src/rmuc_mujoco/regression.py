@@ -14,11 +14,12 @@ import numpy as np
 
 from .acceptance import _contact_sample, _run_route, _warning_counts
 from .corner_check import TraceDigest, run_corner_checks, solver_config
+from .high_point_check import run_high_point_checks
 from .manifest import FieldAsset
 from .perimeter_check import run_perimeter_checks
 from .query import find_spawn_candidates
 from .scenarios import scenario_descriptor
-from .seasons import FLY_RAMPS
+from .seasons import FLY_RAMPS, HIGH_POINTS
 from .slope_catalog import slope_catalog
 from .slope_demo import RoverController, rover_xml
 from .slope_runtime import SlopeSession
@@ -390,6 +391,12 @@ def run_regression(
         lambda: run_tunnel_checks(asset, profiles=selected)
         if asset.collision.get("tunnel_contact_layer")
         else absent("pack has no tunnel layer"),
+    )
+    stage(
+        "high_points",
+        lambda: run_high_point_checks(asset, source_manifest=source_manifest, profiles=selected)
+        if asset.season.has(HIGH_POINTS)
+        else absent("season has no high points"),
     )
     report.update(summarize_sections(report["sections"]))
     report["robot_task_outcomes"] = report["sections"]["example_robots"].get("summary")

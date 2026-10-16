@@ -12,6 +12,7 @@ import random
 import tempfile
 import threading
 import time
+from typing import Any
 
 import numpy as np
 
@@ -26,6 +27,30 @@ from .slope_demo import RoverController, rover_xml
 from .slope_progress import SlopeProgress
 from .slope_routes import select_slope_route
 from .viewer import SafePassiveViewerSession
+
+
+# Viewer banner and telemetry prefix for each route-catalog scenario.  The
+# catalog names its own scenario, so adding one here is all a new feature needs.
+CATALOG_LABELS = {"stairs_basic": "STAIRS", "high_point_basic": "HIGH_POINT"}
+CATALOG_PREFIXES = {"stairs_basic": "stairs", "high_point_basic": "high_point"}
+
+
+def load_route_catalog(asset: FieldAsset, path_or_dict) -> dict[str, Any]:
+    """Read a route catalog and hand it to the loader that owns its scenario."""
+
+    document = (
+        path_or_dict
+        if isinstance(path_or_dict, dict)
+        else json.loads(Path(path_or_dict).read_text(encoding="utf-8"))
+    )
+    scenario_id = (document.get("catalog", document) or {}).get("scenario_id")
+    if scenario_id == "high_point_basic":
+        from .high_point import load_high_point_catalog
+
+        return load_high_point_catalog(asset, document)
+    from .stairs import load_stair_catalog
+
+    return load_stair_catalog(asset, document)
 
 
 def _root_joint(model):
@@ -134,14 +159,15 @@ class SlopeSession:
         if robot is None and controller is not None:
             raise ValueError("--controller requires --robot for slope_basic")
         self.asset = asset if isinstance(asset, FieldAsset) else FieldAsset.open(asset, verify=True)
-        if route_catalog is None:
-            self.catalog = slope_catalog(self.asset)
-            self.scenario_id = "slope_basic"
-        else:
-            from .stairs import load_stair_catalog
-
-            self.catalog = load_stair_catalog(self.asset, route_catalog)
-            self.scenario_id = "stairs_basic"
+        # Every route catalog names its own scenario, so the session never has to
+        # be told which feature it is driving.  The ordinary-slope catalog is the
+        # session's default and carries no name of its own.
+        self.catalog = (
+            slope_catalog(self.asset)
+            if route_catalog is None
+            else load_route_catalog(self.asset, route_catalog)
+        )
+        self.scenario_id = str(self.catalog.get("scenario_id", "slope_basic"))
         self.route = select_slope_route(self.catalog, patch)
         self.bounds = load_heightfield(self.asset).bounds_xy_m
         self.direction, self.mode, self.profile = direction, mode, profile
@@ -373,7 +399,7 @@ def view_slope(args, asset):
         mode=args.control,
         profile=args.profile,
         friction_preset=args.friction_preset,
-        route_catalog=args.route_catalog if args.scenario == "stairs_basic" else None,
+        route_catalog=args.route_catalog if args.scenario in CATALOG_LABELS else None,
     )
     if args.headless:
         for _ in range(args.steps):
@@ -388,7 +414,8 @@ def view_slope(args, asset):
         keys = SimpleQueue()
         context = mujoco.viewer.launch_passive(session.model, session.data)
         print(
-            f"{'STAIRS' if session.scenario_id == 'stairs_basic' else 'SLOPE'}_VIEW patch={session.route['route_id']} robot={session.robot_kind}",
+            f"{CATALOG_LABELS.get(session.scenario_id, 'SLOPE')}_VIEW "
+            f"patch={session.route['route_id']} robot={session.robot_kind}",
             flush=True,
         )
         print(session.progress.status_line(session.data.time), flush=True)
@@ -450,7 +477,7 @@ def view_slope(args, asset):
                 time.sleep(max(0, 1 / 60 - (time.monotonic() - frame_start)))
     report = session.report()
     stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S.%fZ")
-    prefix = "stairs" if session.scenario_id == "stairs_basic" else "slope"
+    prefix = CATALOG_PREFIXES.get(session.scenario_id, "slope")
     output = args.telemetry or Path("runs") / f"{prefix}_interaction_{stamp}.json"
     output = output.expanduser().resolve()
     output.parent.mkdir(parents=True, exist_ok=True)

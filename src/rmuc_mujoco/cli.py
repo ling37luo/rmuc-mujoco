@@ -219,6 +219,7 @@ def build_parser() -> argparse.ArgumentParser:
             "full_eval",
             "turn_basic",
             "stairs_basic",
+            "high_point_basic",
             "slope_basic",
             "fly_ramp_north",
             "fly_ramp_south",
@@ -243,6 +244,18 @@ def build_parser() -> argparse.ArgumentParser:
     stairs.add_argument("--source-manifest", type=Path, required=True)
     stairs.add_argument("--output", type=Path, required=True)
     stairs.add_argument("--speeds", type=float, nargs="+", default=[0.3, 0.5, 1.0])
+    high_point = commands.add_parser(
+        "high-point-check",
+        help="source-bound high-point levels and riser faces, publishing the climb routes",
+    )
+    high_point.add_argument("asset", type=Path)
+    high_point.add_argument(
+        "--source-manifest",
+        type=Path,
+        help="source build manifest; adds the audit against the official GLB",
+    )
+    high_point.add_argument("--output", type=Path, required=True)
+    high_point.add_argument("--profiles", choices=RUNTIME_PROFILE_NAMES, nargs="+")
     perimeter = commands.add_parser(
         "perimeter-check", help="source-screened fence approach, sliding and retreat checks"
     )
@@ -308,13 +321,18 @@ def build_parser() -> argparse.ArgumentParser:
             "turn_basic",
             "slope_basic",
             "stairs_basic",
+            "high_point_basic",
             "fly_ramp",
             "fly_ramp_north",
             "fly_ramp_south",
         ),
         default="turn_basic",
     )
-    run.add_argument("--route-catalog", type=Path, help="stairs-check report for stairs_basic")
+    run.add_argument(
+        "--route-catalog",
+        type=Path,
+        help="stairs-check or high-point-check report for its own scenario",
+    )
     run.add_argument("--phase", choices=("spin", "arc", "reversal"), default="spin")
     run.add_argument("--backend", choices=("mujoco", "isaac"), default="mujoco")
     run.add_argument("--workers", type=int, default=1)
@@ -370,6 +388,7 @@ def build_parser() -> argparse.ArgumentParser:
             "full_eval",
             "turn_basic",
             "stairs_basic",
+            "high_point_basic",
             "slope_basic",
             "fly_ramp_north",
             "fly_ramp_south",
@@ -382,8 +401,12 @@ def build_parser() -> argparse.ArgumentParser:
     )
     view.add_argument("--steps", type=int, default=1000, help="headless physics steps")
     view.add_argument("--telemetry", type=Path, help="write headless step telemetry as JSON")
-    view.add_argument("--route-catalog", type=Path, help="stairs-check report for stairs_basic")
-    view.add_argument("--patch", help="slope_basic patch ID; default: first screened route")
+    view.add_argument(
+        "--route-catalog",
+        type=Path,
+        help="stairs-check or high-point-check report for its own scenario",
+    )
+    view.add_argument("--patch", help="route patch ID; default: first screened route")
     view.add_argument(
         "--direction",
         choices=("uphill", "downhill", "roundtrip"),
@@ -787,6 +810,7 @@ def main(argv: list[str] | None = None) -> int:
             return 0 if payload["status"] == "PASS" else 2
         if args.command in {
             "stairs-check",
+            "high-point-check",
             "perimeter-check",
             "wall-check",
             "corner-check",
@@ -803,6 +827,12 @@ def main(argv: list[str] | None = None) -> int:
                 from .stairs import run_stair_checks
 
                 payload = run_stair_checks(args.asset, args.source_manifest, speeds=args.speeds)
+            elif args.command == "high-point-check":
+                from .high_point_check import run_high_point_checks
+
+                payload = run_high_point_checks(
+                    args.asset, source_manifest=args.source_manifest, profiles=args.profiles
+                )
             elif args.command == "perimeter-check":
                 from .perimeter_check import run_perimeter_checks
 
@@ -831,8 +861,13 @@ def main(argv: list[str] | None = None) -> int:
             )
             return 0 if payload["status"] == "PASS" else 2
         if args.command == "run":
-            if args.scenario == "stairs_basic" and args.route_catalog is None:
-                raise ValueError("stairs_basic requires --route-catalog from stairs-check")
+            from .slope_runtime import CATALOG_LABELS, CATALOG_PREFIXES
+
+            if args.scenario in CATALOG_LABELS and args.route_catalog is None:
+                # Every catalog scenario is named <feature>_basic and is published
+                # by the matching <feature>-check command.
+                command = args.scenario.removesuffix("_basic").replace("_", "-")
+                raise ValueError(f"{args.scenario} requires --route-catalog from {command}-check")
             if args.backend == "isaac":
                 from .isaac import load_isaac_heightfield
 
@@ -851,10 +886,10 @@ def main(argv: list[str] | None = None) -> int:
                     payload = load_isaac_heightfield(
                         args.asset, scenario=args.scenario, profile=args.profile
                     ).to_dict()
-                if args.scenario == "stairs_basic":
-                    from .stairs import load_stair_catalog
+                if args.scenario in CATALOG_LABELS:
+                    from .slope_runtime import load_route_catalog
 
-                    payload["route_catalog"] = load_stair_catalog(
+                    payload["route_catalog"] = load_route_catalog(
                         FieldAsset.open(args.asset), args.route_catalog
                     )
                 payload.update(
@@ -867,7 +902,7 @@ def main(argv: list[str] | None = None) -> int:
                         "note": "Isaac consumer builds its own parallel backend from this descriptor",
                     }
                 )
-            elif args.scenario in {"slope_basic", "stairs_basic"}:
+            elif args.scenario == "slope_basic" or args.scenario in CATALOG_LABELS:
                 from datetime import datetime, timezone
                 from .slope_batch import run_slope_batch
 
@@ -890,11 +925,11 @@ def main(argv: list[str] | None = None) -> int:
                     profile=args.profile,
                     trajectory_dir=args.trajectory_dir,
                     progress=True,
-                    route_catalog=args.route_catalog if args.scenario == "stairs_basic" else None,
+                    route_catalog=(args.route_catalog if args.scenario in CATALOG_LABELS else None),
                 )
                 if args.telemetry is None:
                     stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S.%fZ")
-                    prefix = "stairs" if args.scenario == "stairs_basic" else "slope"
+                    prefix = CATALOG_PREFIXES.get(args.scenario, "slope")
                     args.telemetry = Path("runs") / f"{prefix}_batch_{stamp}.json"
             elif args.scenario in {"fly_ramp", "fly_ramp_north", "fly_ramp_south"}:
                 from datetime import datetime, timezone
@@ -956,7 +991,13 @@ def main(argv: list[str] | None = None) -> int:
             display_payload = payload
             if (
                 args.scenario
-                in {"slope_basic", "stairs_basic", "fly_ramp", "fly_ramp_north", "fly_ramp_south"}
+                in {
+                    "slope_basic",
+                    *CATALOG_LABELS,
+                    "fly_ramp",
+                    "fly_ramp_north",
+                    "fly_ramp_south",
+                }
                 and args.backend == "mujoco"
             ):
                 display_payload = {
@@ -1076,11 +1117,13 @@ def main(argv: list[str] | None = None) -> int:
             return 0 if status == "PASS" else 2
         if args.duration < 0.0:
             raise ValueError("--duration must be non-negative")
-        if args.scenario in {"slope_basic", "stairs_basic"}:
+        # The route scenarios all drive the slope session with their own catalog.
+        if args.scenario in ("slope_basic", "stairs_basic", "high_point_basic"):
             from .slope_runtime import view_slope
 
-            if args.scenario == "stairs_basic" and args.route_catalog is None:
-                raise ValueError("stairs_basic requires --route-catalog from stairs-check")
+            if args.scenario in ("stairs_basic", "high_point_basic") and args.route_catalog is None:
+                command = args.scenario.removesuffix("_basic").replace("_", "-")
+                raise ValueError(f"{args.scenario} requires --route-catalog from {command}-check")
             if args.steps < 0:
                 raise ValueError("--steps must be non-negative")
             return view_slope(args, asset)

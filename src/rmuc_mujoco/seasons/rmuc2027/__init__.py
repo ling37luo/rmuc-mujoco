@@ -2,12 +2,30 @@
 
 The 2027 field replaces the 2026 fly ramps with a third pair of tunnels that
 robots drive through or over (rulebook 4.4.2: 800 mm channel, 350 mm metal
-roof, 250 mm clearance), and adds a high point reached by three steps.
+roof, 250 mm clearance), and adds the high point: an 800 mm platform in each
+base area that the trapezoid highland reaches through three 200 mm steps
+(rulebook 4.2.4, figure 4-17).
 """
 
 from __future__ import annotations
 
-from .. import TUNNELS, FieldSource, OfficialFile, ReviewedRulebook, Season, TunnelRoof
+from .. import (
+    HIGH_POINTS,
+    TUNNELS,
+    FieldSource,
+    HighPoint,
+    OfficialFile,
+    ReviewedRulebook,
+    Season,
+    TunnelRoof,
+)
+
+
+def _scenario_table():
+    from .scenarios import SCENARIOS
+
+    return SCENARIOS
+
 
 STEP_V1_0_0 = FieldSource(
     season_id="rmuc2027",
@@ -33,6 +51,37 @@ STEP_V1_0_0 = FieldSource(
         TunnelRoof("b_blue", 123, (-1.4, -0.5, 6.84, 8.24), (0.35, 0.80)),
         TunnelRoof("c_red", 178, (-0.5, 0.5, -6.0, -4.6), (0.35, 0.80)),
         TunnelRoof("c_blue", 150, (-0.5, 0.5, 7.84, 9.24), (0.35, 0.80)),
+    ),
+    # The 2027 high points (rulebook 4.2.4, figure 4-17): an 800 mm platform
+    # whose highland flight is three 200 mm steps (section A-A) and whose floor
+    # flight is four (section B-B).  Both sit in a base area and are 180 degree
+    # images of each other about the battlefield centre, so each flight
+    # direction points the opposite way.
+    high_points=(
+        HighPoint(
+            high_point_id="red",
+            search_box_xy_m=(-13.9, -10.4, 4.1, 7.6),
+            platform_top_m=0.80,
+            step_rise_m=0.20,
+            step_tread_m=0.30,
+            highland_level_m=0.20,
+            highland_step_count=3,
+            floor_step_count=4,
+            highland_flight_xy=(1.0, 0.0),
+            floor_flight_xy=(0.0, -1.0),
+        ),
+        HighPoint(
+            high_point_id="blue",
+            search_box_xy_m=(10.4, 13.9, -4.4, -0.6),
+            platform_top_m=0.80,
+            step_rise_m=0.20,
+            step_tread_m=0.30,
+            highland_level_m=0.20,
+            highland_step_count=3,
+            floor_step_count=4,
+            highland_flight_xy=(-1.0, 0.0),
+            floor_flight_xy=(0.0, 1.0),
+        ),
     ),
 )
 
@@ -62,5 +111,6 @@ SEASON = Season(
     ),
     surface_guide=None,
     core_battlefield_size_m=(28.0, 15.0),
-    features=frozenset({TUNNELS}),
+    features=frozenset({TUNNELS, HIGH_POINTS}),
+    scenario_table=_scenario_table,
 )

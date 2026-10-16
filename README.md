@@ -137,6 +137,7 @@ inherits global solver options from the parent robot; check the resulting
 | `slope_basic` | Screened routes; separate uphill, downhill and roundtrip results |
 | `fly_ramp_north`, `fly_ramp_south` | RMUC 2026 only: jump episodes and same-source local training regions |
 | `stairs_basic` | Source-checked isolated steps; paired wheel checks and robot traversal |
+| `high_point_basic` | RMUC 2027 only: measured high-point levels and risers, published as climb routes |
 | `boundary_contact` | Source-screened perimeter contact and whole-rover corner approach/retreat checks |
 
 The [training guide](docs/TRAINING.md) covers commands, controller interfaces
@@ -152,10 +153,14 @@ The main collision surface is a single-height-per-XY heightfield. Underpasses,
 stacked surfaces and overhangs are not represented correctly, except for tunnels:
 the optional `tunnel-pack` lowers the heightfield under each tunnel roof and adds
 the roof as source-derived collision, so robots can drive through (250 mm
-clearance) or over. An optional source-wall export adds local convex collision.
-Selected wall, perimeter, reachable corner and tunnel checks are in the regression;
-these do not cover every structure or robot. Dynamic match mechanisms are outside the
-current locomotion baseline.
+clearance) or over. The 2027 high points (制高点) stay inside that scope: a
+stepped platform has one surface per XY, so the heightfield carries it and no
+part of the build is replaced. The included rover's 160 mm wheels cannot mount
+the 200 mm risers, so its own runs on those routes report a tipped robot.
+An optional source-wall export adds local convex
+collision. Selected wall, perimeter, reachable corner, tunnel and high-point
+checks are in the regression; these do not cover every structure or robot.
+Dynamic match mechanisms are outside the current locomotion baseline.
 
 Packs therefore retain `DRAFT_BLOCKED`: file verification and individual route
 checks do not establish whole-field physical accuracy. This label does not
@@ -178,8 +183,10 @@ Tests use synthetic fixtures and do not download official assets.
 ## 中文说明
 
 本仓库提供统一的 RMUC 场地、机器人接入和训练场景接口，按赛季（`--season`）
-选择官方图纸，目前登记了 RMUC 2026。官方文件由使用者在本地下载并生成场地包；
-仓库中不包含场地资产或特定机器人的策略。
+选择官方图纸，目前登记了 RMUC 2026 与 RMUC 2027。官方文件由使用者在本地下载并生成
+场地包；仓库中不包含场地资产或特定机器人的策略。
 交互查看使用 `full`，批量仿真使用 `collision_only`。普通坡和飞坡已有可运行示例；
-台阶、墙面、围栏与可达角落已有局部接触检查，可通过 `check` 统一运行。
+台阶、墙面、围栏、隧道与可达角落已有局部接触检查，可通过 `check` 统一运行。
+RMUC 2027 的制高点由 `high-point-check` 量测并生成可攀爬路线，供
+`--scenario high_point_basic` 的 `run`/`view` 使用。
 复杂台阶组合、多层结构和任意机器人的通行能力仍不属于已验证范围。
