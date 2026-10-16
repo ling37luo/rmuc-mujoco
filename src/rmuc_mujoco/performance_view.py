@@ -17,8 +17,8 @@ import numpy as np
 
 from .acceptance import PROFILE_ORDER, _rss_bytes, _warning_counts
 from .display import FieldDisplayController
-from .seasons import FLY_RAMPS
 from .manifest import FieldAsset
+from .seasons import FLY_RAMPS
 from .performance import load_rover, machine_snapshot, select_spawn, wheel_command
 from .slope_runtime import reset_slope_spawn
 from .visual_benchmark import _camera

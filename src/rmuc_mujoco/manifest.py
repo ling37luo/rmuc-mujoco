@@ -14,7 +14,6 @@ import zlib
 import numpy as np
 
 from .collision_candidate import SOURCE_GLB_SHA256
-from .seasons import FieldSource, Season, season_of, source_for_step
 from .errors import AssetIntegrityError, ManifestError
 from .livery import (
     GROUND_MARKING_KNOWN_LIMITATIONS,
@@ -32,6 +31,7 @@ from .livery import (
     SOURCE_SURFACE_GUIDE_KIND,
 )
 from .perimeter_fence import FENCE_NAMES, LEGACY_FENCE_SCHEMA, perimeter_fence_contract
+from .seasons import FieldSource, Season, season_of, source_for_step
 from .wall_tip_repair import validate_wall_tip_repair_record, verify_wall_tip_repair_samples
 
 
