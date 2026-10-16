@@ -1,7 +1,7 @@
 # rmuc-mujoco
 
-An open-source RMUC 2026 field builder and simulation interface for MuJoCo.
-Build the field from the pinned official CAD source, attach your robot and
+An open-source RMUC field builder and simulation interface for MuJoCo.
+Build a season's field from its pinned official CAD source, attach your robot and
 controller, and use the same field for interactive evaluation and training
 scenarios. The runtime depends on MuJoCo and NumPy, with no RL framework required.
 
@@ -28,6 +28,9 @@ rmuc-field view ./local-rmuc2026-field
 ```
 
 `setup` downloads verified sources into a local cache and creates a new pack.
+It builds the default season, RMUC 2026; choose another registered season with
+`--season`, and list the pinned sources with `rmuc-field source --season ID`.
+The pack records its season, and later commands read it from the pack.
 To inspect the pinned source identity first, run `rmuc-field source`.
 Existing output directories are not overwritten; reuse a completed pack or
 choose a new output directory. For source contact checks, add
@@ -132,7 +135,7 @@ inherits global solver options from the parent robot; check the resulting
 | `full_eval` | Complete field viewing and external robot evaluation |
 | `turn_basic` | Screened flat starts; spin, arc and reversal batches |
 | `slope_basic` | Screened routes; separate uphill, downhill and roundtrip results |
-| `fly_ramp_north`, `fly_ramp_south` | Jump episodes and same-source local training regions |
+| `fly_ramp_north`, `fly_ramp_south` | RMUC 2026 only: jump episodes and same-source local training regions |
 | `stairs_basic` | Source-checked isolated steps; paired wheel checks and robot traversal |
 | `boundary_contact` | Source-screened perimeter contact and whole-rover corner approach/retreat checks |
 
@@ -172,8 +175,9 @@ Tests use synthetic fixtures and do not download official assets.
 
 ## 中文说明
 
-本仓库提供统一的 RMUC 2026 场地、机器人接入和训练场景接口。官方文件由使用者
-在本地下载并生成场地包；仓库中不包含场地资产或特定机器人的策略。
+本仓库提供统一的 RMUC 场地、机器人接入和训练场景接口，按赛季（`--season`）
+选择官方图纸，目前登记了 RMUC 2026。官方文件由使用者在本地下载并生成场地包；
+仓库中不包含场地资产或特定机器人的策略。
 交互查看使用 `full`，批量仿真使用 `collision_only`。普通坡和飞坡已有可运行示例；
 台阶、墙面、围栏与可达角落已有局部接触检查，可通过 `check` 统一运行。
 复杂台阶组合、多层结构和任意机器人的通行能力仍不属于已验证范围。

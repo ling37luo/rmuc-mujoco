@@ -4,6 +4,19 @@ User-visible changes by release. Generated field packs and official assets are
 built locally and are not included in releases. Passing individual scenarios
 does not remove the full field's `DRAFT_BLOCKED` status.
 
+## [Unreleased]
+
+- Renamed the package to `rmuc-mujoco` (`rmuc_mujoco`, `rmuc-field`) for
+  multi-season use. `rmuc2026_mujoco`, `rmuc2026-field` and `rmuc2026-mujoco`
+  remain as aliases; pack formats and data identifiers are unchanged.
+- Added a season registry (`rmuc_mujoco.seasons`) and `--season` for `source`,
+  `download`, `build` and `setup`. RMUC 2026 is the only registered season.
+- New packs record `season` and `official_step_version`; 1.x packs are
+  identified by their STEP hash. Field files exported from the same source
+  build are unchanged.
+- Moved the fly-ramp modules to `rmuc_mujoco.seasons.rmuc2026`; the 1.x import
+  paths still resolve. Fly-ramp scenarios are offered only on RMUC 2026 packs.
+
 ## [1.3.0] - 2026-10-09
 
 - Added `benchmark` with fresh parallel workers, a fixed public rover workload,
