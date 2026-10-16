@@ -15,8 +15,8 @@ The official STEP download is about 1.25 GB; allow at least 5 GiB of free disk
 space for conversion. Loading a finished pack does not require the CAD tools.
 
 ```bash
-git clone https://github.com/ling37luo/rmuc2026-mujoco.git
-cd rmuc2026-mujoco
+git clone https://github.com/ling37luo/rmuc-mujoco.git
+cd rmuc-mujoco
 python3 -m venv .venv
 source .venv/bin/activate
 python -m pip install '.[build,viewer]'

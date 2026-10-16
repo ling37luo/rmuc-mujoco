@@ -28,9 +28,9 @@ dependencies = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/ling37luo/rmuc2026-mujoco"
-Issues = "https://github.com/ling37luo/rmuc2026-mujoco/issues"
-Source = "https://github.com/ling37luo/rmuc2026-mujoco"
+Homepage = "https://github.com/ling37luo/rmuc-mujoco"
+Issues = "https://github.com/ling37luo/rmuc-mujoco/issues"
+Source = "https://github.com/ling37luo/rmuc-mujoco"
 
 [project.optional-dependencies]
 build = [
