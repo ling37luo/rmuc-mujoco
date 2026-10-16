@@ -305,3 +305,25 @@ def test_check_runs_the_tunnel_section_only_for_tunnel_packs(
 
     assert report["sections"]["tunnels"]["status"] == "PASS"
     assert calls
+
+
+def test_slope_patches_under_a_roof_are_not_ordinary_slopes() -> None:
+    from rmuc_mujoco.slope_catalog import catalog_slope_patches
+
+    axis = np.round(np.arange(-2.0, 2.0 + 1e-9, 0.02), 6)
+    gx, _ = np.meshgrid(axis, axis)
+    ramp = HeightFieldData(axis, axis, np.clip(gx, -1.0, 1.0) * np.tan(np.radians(12.0)))
+    open_sky = catalog_slope_patches(ramp, max_per_band=8, minimum_separation_m=0.5)
+    assert open_sky
+    roofs = [
+        [
+            [p.center_xyz_m[0] - 0.2, p.center_xyz_m[1] - 0.2],
+            [p.center_xyz_m[0] + 0.2, p.center_xyz_m[1] + 0.2],
+        ]
+        for p in open_sky
+    ]
+    covered = catalog_slope_patches(
+        ramp, max_per_band=8, minimum_separation_m=0.5, excluded_xy_m=roofs
+    )
+    centres = {tuple(np.round(p.center_xyz_m[:2], 3)) for p in open_sky}
+    assert not centres & {tuple(np.round(p.center_xyz_m[:2], 3)) for p in covered}

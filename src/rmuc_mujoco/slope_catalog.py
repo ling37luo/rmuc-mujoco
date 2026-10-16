@@ -10,7 +10,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 import math
-from typing import Any, Iterable
+from typing import Any, Iterable, Sequence
 
 import numpy as np
 
@@ -89,6 +89,7 @@ def catalog_slope_patches(
     horizontal_run_m: float = 0.80,
     usable_width_m: float = 0.60,
     minimum_separation_m: float = 2.0,
+    excluded_xy_m: Iterable[Sequence[Sequence[float]]] = (),
 ) -> tuple[SlopePatch, ...]:
     """Find deterministic, plane-like ordinary slope patches.
 
@@ -96,7 +97,8 @@ def catalog_slope_patches(
     mesh seams also have a large gradient.  Every returned patch therefore
     receives a local plane fit over a short route and a lateral width.  The
     result remains a runtime proxy and never claims CAD topology or robot
-    clearance.
+    clearance.  Patches touching an ``excluded_xy_m`` box ([[x0, y0], [x1, y1]],
+    e.g. a tunnel roof span) are skipped: they are not open-sky slopes.
     """
 
     if isinstance(max_per_band, bool) or not isinstance(max_per_band, int) or max_per_band <= 0:
@@ -129,6 +131,7 @@ def catalog_slope_patches(
     x_indices = range(0, data.x_m.size, stride_x)
     y_indices = range(0, data.y_m.size, stride_y)
     candidates: list[SlopePatch] = []
+    excluded = [(np.asarray(box[0], float), np.asarray(box[1], float)) for box in excluded_xy_m]
 
     for band in tuple(bands):
         found: list[SlopePatch] = []
@@ -164,6 +167,16 @@ def catalog_slope_patches(
                     dtype=float,
                 )
                 if not bool(_inside(data, points[:, 0], points[:, 1], margin=0.0).all()):
+                    continue
+                if any(
+                    np.any(
+                        (points[:, 0] >= lower[0])
+                        & (points[:, 0] <= upper[0])
+                        & (points[:, 1] >= lower[1])
+                        & (points[:, 1] <= upper[1])
+                    )
+                    for lower, upper in excluded
+                ):
                     continue
                 heights = _bilinear_points(data, points[:, 0], points[:, 1])
                 design = np.column_stack(
@@ -231,6 +244,10 @@ def slope_catalog(
         data,
         max_per_band=max_per_band,
         sampling_m=sampling_m,
+        excluded_xy_m=[
+            roof["span_world_xy_m"]
+            for roof in field.collision.get("tunnel_contact_layer", {}).get("roofs", [])
+        ],
     )
     from .scenarios import scenario_descriptor
 
