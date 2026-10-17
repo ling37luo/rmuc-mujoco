@@ -753,7 +753,7 @@ def main(argv: list[str] | None = None) -> int:
                     "manifest_sha256": bound_asset.manifest_sha256,
                     "scenarios": [
                         scenario_descriptor(bound_asset, item["scenario_id"], profile=args.profile)
-                        for item in list_scenarios()
+                        for item in list_scenarios(bound_asset.season)
                     ],
                 }
             else:

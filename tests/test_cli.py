@@ -21,7 +21,8 @@ from rmuc_mujoco.cli import (
     main,
 )
 from rmuc_mujoco.download import DownloadedRulebook
-from rmuc_mujoco.seasons import get_season
+from rmuc_mujoco.scenarios import scenarios_for
+from rmuc_mujoco.seasons import RMUC2027, get_season
 
 
 def test_verify_cli_emits_machine_readable_pass(field_asset_dir: Path, capsys) -> None:
@@ -153,6 +154,20 @@ def test_scenarios_cli_lists_public_registry(capsys) -> None:
         "fly_ramp_south",
         "boundary_contact",
     ]
+
+
+def test_scenarios_cli_binds_the_table_of_the_pack_season(
+    field_asset_dir: Path, monkeypatch, capsys
+) -> None:
+    # A bound listing follows the pack's season, not the default one: a 2027
+    # pack offers the high point and has no fly ramps to describe.
+    monkeypatch.setattr(FieldAsset, "season", property(lambda self: RMUC2027))
+    assert main(["scenarios", "--asset", str(field_asset_dir)]) == 0
+    output = json.loads(capsys.readouterr().out)
+    scenario_ids = [item["scenario_id"] for item in output["scenarios"]]
+    assert scenario_ids == list(scenarios_for(RMUC2027))
+    assert "high_point_basic" in scenario_ids
+    assert not {"fly_ramp_north", "fly_ramp_south"} & set(scenario_ids)
 
 
 def test_overview_camera_uses_verified_field_bounds(field_asset_dir: Path) -> None:
