@@ -55,6 +55,7 @@ from rmuc_mujoco.perimeter_fence import (
     export_fenced_pack,
     perimeter_fence_contract,
 )
+from rmuc_mujoco.seasons import RMUC2026, RMUC2027
 from rmuc_mujoco.seasons.rmuc2026.ramp_audit import FIXED_FLY_RAMPS
 
 
@@ -566,6 +567,7 @@ def test_fence_pack_rejects_source_void_profile_until_joint_physics_is_audited(
 def test_current_perimeter_limits_both_pinned_fly_ramp_outer_overlap() -> None:
     manifest = {
         "schema_version": 2,
+        "source_identity": {"official_step_sha256": OFFICIAL_STEP_SHA256},
         "dimensions": {
             "official_core_battlefield_m": [28.0, 15.0],
             "cad_assembly_outer_bounds_after_translation_m": [
@@ -610,6 +612,44 @@ def test_current_perimeter_limits_both_pinned_fly_ramp_outer_overlap() -> None:
             else float(np.min(corners[:, 1])) - inner_face_y
         )
         assert -0.01 <= clearance <= 0.0
+
+
+def test_the_2027_fence_stands_on_its_own_deck_edges() -> None:
+    """Without fly ramps the 2027 outline is the deck in x, and the fence follows it."""
+
+    manifest = {
+        "schema_version": 2,
+        "source_identity": {"official_step_sha256": RMUC2027.default_source.step.sha256},
+        "dimensions": {
+            "official_core_battlefield_m": [28.0, 15.0],
+            "cad_assembly_outer_bounds_after_translation_m": [
+                [-25.18, -12.96, -0.170158830913],
+                [2.819991909908, 3.043130912781, 3.628273884099],
+            ],
+        },
+        "collision": {
+            "geom_center_after_translation_m": [-11.18, -4.96, 0.0],
+            "half_size_xy_m": [14.02, 8.02],
+        },
+        "coordinate_frame": {"recommended_spawn": {"terrain_height_m": 0.006590679576}},
+    }
+    contract = perimeter_fence_contract(manifest)
+    panels = {panel["name"].rsplit("_", 1)[-1]: panel for panel in contract["panels"]}
+
+    # The wall centres sit on the deck edges, 14 m and 7.5 m from the outline centre.
+    centre_x, centre_y = (-25.18 + 2.819991909908) / 2, (-12.96 + 3.043130912781) / 2
+    assert panels["left"]["pos"][0] == pytest.approx(centre_x - 14.0)
+    assert panels["right"]["pos"][0] == pytest.approx(centre_x + 14.0)
+    assert panels["bottom"]["pos"][1] == pytest.approx(centre_y - 7.5)
+    assert panels["top"]["pos"][1] == pytest.approx(centre_y + 7.5)
+
+    # The 2026 outline reaches past the deck to the fly ramps; 2027's does not.
+    manifest["source_identity"]["official_step_sha256"] = RMUC2026.default_source.step.sha256
+    with pytest.raises(ValueError, match="calibrated fence frame"):
+        perimeter_fence_contract(manifest)
+    manifest["source_identity"]["official_step_sha256"] = "0" * 64
+    with pytest.raises(ValueError, match="no calibrated fence frame"):
+        perimeter_fence_contract(manifest)
 
 
 def test_export_preserves_bound_fixed_fly_ramp_audit(tmp_path: Path) -> None:

@@ -88,6 +88,8 @@ STEP_V1_0_0 = FieldSource(
     # x = -4.82 and x = +4.82, the steps the 2026 routes use.  Each merges the
     # 2026 tunnel-roof and stair parts (554 and 556, 557 and 558).
     stair_parts=(226, 229),
+    # No fly ramps: in x the outline is the 28 m deck itself.
+    cad_outer_extents_xy_m=(27.999991909907, 16.003130912781),
 )
 
 SEASON = Season(

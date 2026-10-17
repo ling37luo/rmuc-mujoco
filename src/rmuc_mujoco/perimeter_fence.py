@@ -6,8 +6,10 @@ proxy follows the inferred 28 by 15 m raised deck edge. Its inner face overlaps
 the deck by 25 mm, blocking a robot before it can drop into the lower skirt
 between the playable deck and the outer CAD bounds. The resulting 5.5 mm
 overlap at the two fixed fly-ramp outer corners is below the 10 mm heightfield
-sample spacing. The wall thickness, buried base, and solid dart-aperture
-treatment are simulation choices, not official dimensions.
+sample spacing. RMUC 2027 has the same battlefield and fence top but no fly
+ramps, so its CAD outline in x is the deck itself; each STEP release records the
+outline the fence is placed in. The wall thickness, buried base, and solid
+dart-aperture treatment are simulation choices, not official dimensions.
 """
 
 from __future__ import annotations
@@ -20,6 +22,7 @@ import tempfile
 from typing import Any
 import xml.etree.ElementTree as ET
 
+from .seasons import source_for_step
 
 LEGACY_FENCE_SCHEMA = "rmuc2026_rulebook_perimeter_proxy_v1"
 RAMP_CLEARANCE_FENCE_SCHEMA = "rmuc2026_rulebook_perimeter_proxy_v2"
@@ -40,7 +43,6 @@ OUTWARD_OFFSET_Y_M = 0.40
 DECK_EDGE_OUTWARD_OFFSET_Y_M = 0.0
 THICKNESS_M = 0.05
 BURIAL_M = 0.30
-_APPROX_CAD_EXTENTS_M = (29.752008274927, 16.003130912781)
 
 
 def perimeter_fence_contract(
@@ -67,9 +69,12 @@ def perimeter_fence_contract(
         raise ValueError("the CAD assembly bounds must have two XYZ corners")
     low, high = ([float(value) for value in row] for row in bounds)
     extents = (high[0] - low[0], high[1] - low[1])
+    release = source_for_step(manifest.get("source_identity", {}).get("official_step_sha256"))
+    if release is None or release.cad_outer_extents_xy_m is None:
+        raise ValueError("the field's STEP release has no calibrated fence frame")
     if any(
         not math.isfinite(value) or abs(value - expected) > 0.02
-        for value, expected in zip(extents, _APPROX_CAD_EXTENTS_M)
+        for value, expected in zip(extents, release.cad_outer_extents_xy_m)
     ):
         raise ValueError("the CAD assembly does not match the calibrated fence frame")
     cx = (low[0] + high[0]) / 2

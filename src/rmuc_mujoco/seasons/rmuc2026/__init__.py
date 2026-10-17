@@ -43,6 +43,8 @@ STEP_V2_0_0 = FieldSource(
         TunnelRoof("b_blue", 389, (-1.4, -0.5, 6.84, 8.24), (0.35, 0.80)),
     ),
     stair_parts=(235, 236, 382, 383, 476, 554, 556, 557, 558),
+    # The fly ramps reach past both ends of the 28 m deck.
+    cad_outer_extents_xy_m=(29.752008274927, 16.003130912781),
 )
 
 SEASON = Season(

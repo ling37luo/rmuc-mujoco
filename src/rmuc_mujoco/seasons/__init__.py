@@ -109,6 +109,9 @@ class FieldSource:
     # Parts of that GLB reviewed for isolated stair risers.  A release without
     # them has no stair evidence yet; the stair check refuses it.
     stair_parts: tuple[int, ...] = ()
+    # Outer XY extents of the CAD assembly the perimeter fence is placed in.  A
+    # build with another outline, or a release without one, gets no fence.
+    cad_outer_extents_xy_m: tuple[float, float] | None = None
 
 
 @dataclass(frozen=True)

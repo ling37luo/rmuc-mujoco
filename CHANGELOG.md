@@ -47,6 +47,10 @@ does not remove the full field's `DRAFT_BLOCKED` status.
   instead of failing on another release's part numbers.
 - RMUC 2027 records its two reviewed stair parts, so `stairs-check` and `check`
   cover the two central 200 mm steps on 2027 packs as they do on 2026 packs.
+- `fence-pack` places the perimeter fence on RMUC 2027 packs. Each STEP release
+  records the CAD outline the fence is calibrated to: the 2026 outline reaches
+  past the deck to the fly ramps, 2027's is the 28 m deck itself. On a fenced
+  2027 pack `check` runs the perimeter and corner sections.
 
 ## [1.3.0] - 2026-10-09
 
