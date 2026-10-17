@@ -218,11 +218,17 @@ As with the stair routes, the named low end is where an uphill run starts and
 `uphill_unit_xy` is the direction it drives, so `--directions uphill` drives at
 the steps and `--directions downhill` starts on the platform.
 
-The included four-wheel rover has 160 mm wheels, so it tips on a 200 mm riser in
-both directions and `run` reports `robot_tipped` for it. That is the rover's
-limit, not the route's: the check above does not depend on which robot you
-drive, and the routes are for a robot that can mount the steps. Use
-`--robot` and `--controller` to drive your own.
+Without `--robot`, `run` and `view` drive an included step rover on these
+routes: 500 mm wheels, its mass over the front axle and a stiff wheel-speed loop.
+It climbs and descends all four 2027 flights at 0.3 and 0.5 m/s. With its mass
+centred, the rear wheels' torque against a riser lifts the front wheels off the
+step above and it stalls or tips backwards; the four-wheel rover of the other
+scenarios has 160 mm wheels and tips on a 200 mm riser. The step rover is a test
+vehicle, not a team's RM robot, and the check above does not depend on it; use
+`--robot` and `--controller` to drive your own. Route ends sit 0.6 m from the
+nearest riser, so a robot about a metre long spawns clear of the flight, and
+`check` drives every high-point route up and down with the step rover as part of
+its example-robot section.
 
 Each level is compared after removing a locally fitted platform plane. The
 recovered battlefield carries a shallow camber — about 2.6 % in y, with opposite

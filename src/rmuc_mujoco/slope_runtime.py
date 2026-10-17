@@ -23,7 +23,13 @@ from .mjcf import FIELD_ATTACH_PREFIX, compose_with_robot
 from .query import load_heightfield
 from .scenarios import scenario_descriptor
 from .slope_catalog import slope_catalog
-from .slope_demo import RoverController, rover_xml
+from .slope_demo import (
+    STEP_ROVER_HALF_TRACK_M,
+    STEP_ROVER_WHEEL_RADIUS_M,
+    RoverController,
+    rover_xml,
+    step_rover_xml,
+)
 from .slope_progress import SlopeProgress
 from .slope_routes import select_slope_route
 from .viewer import SafePassiveViewerSession
@@ -33,6 +39,10 @@ from .viewer import SafePassiveViewerSession
 # catalog names its own scenario, so adding one here is all a new feature needs.
 CATALOG_LABELS = {"stairs_basic": "STAIRS", "high_point_basic": "HIGH_POINT"}
 CATALOG_PREFIXES = {"stairs_basic": "stairs", "high_point_basic": "high_point"}
+# Built-in rover for a scenario run without --robot.  A 200 mm high-point riser
+# is taller than the four-wheel rover's 160 mm wheels can mount, so the climbs
+# drive the big-wheel step rover; every other scenario keeps the original.
+EXAMPLE_ROVERS = {"high_point_basic": "example_step_rover"}
 
 
 def load_route_catalog(asset: FieldAsset, path_or_dict) -> dict[str, Any]:
@@ -175,9 +185,14 @@ class SlopeSession:
         self.profile_hash = scenario_descriptor(self.asset, self.scenario_id, profile=profile)[
             "profile_hash"
         ]
-        self.robot_kind = "external_robot" if robot is not None else "example_four_wheel_rover"
+        self.robot_kind = (
+            "external_robot"
+            if robot is not None
+            else EXAMPLE_ROVERS.get(self.scenario_id, "example_four_wheel_rover")
+        )
         if robot is None:
-            xml = rover_xml()
+            step_rover = self.robot_kind == "example_step_rover"
+            xml = step_rover_xml() if step_rover else rover_xml()
             with tempfile.TemporaryDirectory(prefix="rmuc-slope-rover-") as directory:
                 robot_path = Path(directory) / "rover.xml"
                 robot_path.write_text(xml, encoding="utf-8")
@@ -185,7 +200,15 @@ class SlopeSession:
                     self.asset, robot_path, profile=profile, friction_preset=friction_preset
                 )
             self.robot_hash = hashlib.sha256(xml.encode()).hexdigest()
-            self.controller = RoverController(self.route, direction, speed)
+            drive = (
+                {
+                    "half_track_m": STEP_ROVER_HALF_TRACK_M,
+                    "wheel_radius_m": STEP_ROVER_WHEEL_RADIUS_M,
+                }
+                if step_rover
+                else {}
+            )
+            self.controller = RoverController(self.route, direction, speed, **drive)
         else:
             self.robot_hash = hashlib.sha256(Path(robot).read_bytes()).hexdigest()
             self.model, self.data = compose_with_robot(

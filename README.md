@@ -155,8 +155,9 @@ the optional `tunnel-pack` lowers the heightfield under each tunnel roof and add
 the roof as source-derived collision, so robots can drive through (250 mm
 clearance) or over. The 2027 high points (制高点) stay inside that scope: a
 stepped platform has one surface per XY, so the heightfield carries it and no
-part of the build is replaced. The included rover's 160 mm wheels cannot mount
-the 200 mm risers, so its own runs on those routes report a tipped robot.
+part of the build is replaced. Without `--robot`, those routes drive a
+big-wheel step rover that climbs the 200 mm risers; the four-wheel rover used
+elsewhere cannot.
 An optional source-wall export adds local convex
 collision. Selected wall, perimeter, reachable corner, tunnel and high-point
 checks are in the regression; these do not cover every structure or robot.

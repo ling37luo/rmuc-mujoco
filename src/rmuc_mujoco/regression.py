@@ -233,7 +233,7 @@ def _session_episode(session, *, case_id, timeout_s):
     }
 
 
-def check_example_episodes(asset, profiles, slopes, stair_catalog):
+def check_example_episodes(asset, profiles, slopes, stair_catalog, high_point_catalog=None):
     rows = []
     for profile in profiles:
         if slopes:
@@ -263,6 +263,25 @@ def check_example_episodes(asset, profiles, slopes, stair_catalog):
                     rows.append(
                         _session_episode(
                             session, case_id=f"stairs/{patch['patch_id']}/{direction}", timeout_s=10
+                        )
+                    )
+            del session
+        if high_point_catalog and high_point_catalog["patches"]:
+            session = SlopeSession(
+                asset,
+                mode="policy",
+                profile=profile,
+                record_trajectory=False,
+                route_catalog=high_point_catalog,
+            )
+            for patch in high_point_catalog["patches"]:
+                for direction in ("uphill", "downhill"):
+                    session.reset(patch=patch["patch_id"], direction=direction, speed=0.3, seed=0)
+                    rows.append(
+                        _session_episode(
+                            session,
+                            case_id=f"high_point/{patch['patch_id']}/{direction}",
+                            timeout_s=4 * patch["route"]["length_m"] / 0.3 + 5,
                         )
                     )
             del session
@@ -380,10 +399,21 @@ def run_regression(
         if asset.collision.get("source_contact_layer")
         else absent("pack has no source wall layer"),
     )
+    # The high points publish their climbs before the example robots drive them.
+    high_points = stage(
+        "high_points",
+        lambda: run_high_point_checks(asset, source_manifest=source_manifest, profiles=selected)
+        if asset.season.has(HIGH_POINTS)
+        else absent("season has no high points"),
+    )
     stage(
         "example_robots",
         lambda: check_example_episodes(
-            asset, selected, surfaces.get("ordinary_patches", []), stairs.get("catalog")
+            asset,
+            selected,
+            surfaces.get("ordinary_patches", []),
+            stairs.get("catalog"),
+            high_points.get("catalog"),
         ),
     )
     stage(
@@ -391,12 +421,6 @@ def run_regression(
         lambda: run_tunnel_checks(asset, profiles=selected)
         if asset.collision.get("tunnel_contact_layer")
         else absent("pack has no tunnel layer"),
-    )
-    stage(
-        "high_points",
-        lambda: run_high_point_checks(asset, source_manifest=source_manifest, profiles=selected)
-        if asset.season.has(HIGH_POINTS)
-        else absent("season has no high points"),
     )
     report.update(summarize_sections(report["sections"]))
     report["robot_task_outcomes"] = report["sections"]["example_robots"].get("summary")

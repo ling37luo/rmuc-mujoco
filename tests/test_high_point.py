@@ -14,7 +14,7 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from rmuc_mujoco import FieldAsset, regression
+from rmuc_mujoco import FieldAsset, regression, slope_runtime
 from rmuc_mujoco.cli import main
 from rmuc_mujoco.high_point import (
     PATCH_STEP_M,
@@ -40,7 +40,9 @@ from rmuc_mujoco.manifest import sha256_file
 from rmuc_mujoco.pack import export_runtime_asset_pack
 from rmuc_mujoco.query import load_heightfield
 from rmuc_mujoco.seasons import HIGH_POINTS, RMUC2026, RMUC2027, HighPoint
-from rmuc_mujoco.slope_runtime import CATALOG_LABELS, load_route_catalog
+from rmuc_mujoco.slope_batch import run_slope_episode
+from rmuc_mujoco.slope_demo import STEP_ROVER_WHEEL_RADIUS_M
+from rmuc_mujoco.slope_runtime import CATALOG_LABELS, SlopeSession, load_route_catalog
 from test_pack_profiles import _heightfield_bootstrap_png, _synthetic_source_build
 
 # The highland flight of figure 4-17 as the drawing defines it: a platform and
@@ -247,6 +249,55 @@ def test_the_route_runs_from_the_landing_up_to_the_platform(stepped_pack: Path) 
     assert waypoints[:, 2].max() <= high[2] + 1e-9
 
 
+def _climb_session(asset: FieldAsset) -> SlopeSession:
+    """A session on the synthetic flight's route, with the built-in rover."""
+
+    route = _route(load_heightfield(asset), FLIGHT, _flight(asset), None)
+    catalog = _catalog(asset, patches=[{"patch_id": route["route_id"], "route": route}])
+    return SlopeSession(asset, mode="policy", route_catalog={"catalog": catalog})
+
+
+def _climb(session: SlopeSession, direction: str) -> dict:
+    case = {
+        "case_id": f"climb_{direction}",
+        "case_index": 0,
+        "patch": session.route["route_id"],
+        "direction": direction,
+        "speed_mps": 0.3,
+        "repeat": 0,
+        "seed": 0,
+        "timeout_s": 20.0,
+    }
+    return run_slope_episode(session, case)
+
+
+def test_the_step_rover_climbs_a_flight_the_four_wheel_rover_cannot(
+    stepped_pack: Path, monkeypatch
+) -> None:
+    """The drawn flight is climbable by a rover whose wheels stand taller than a riser."""
+
+    # The synthetic pack carries the 2026 STEP identity; the scenario is 2027's.
+    monkeypatch.setattr(FieldAsset, "season", property(lambda self: RMUC2027))
+    asset = FieldAsset.open(stepped_pack, verify=True)
+    session = _climb_session(asset)
+    assert session.robot_kind == "example_step_rover"
+    # The route end keeps the front wheels clear of the first riser, so the rover
+    # spawns standing on the landing instead of propped up on a step.
+    assert session.initial_pose[2] == pytest.approx(
+        session.route["low_xyz_m"][2] + STEP_ROVER_WHEEL_RADIUS_M, abs=0.01
+    )
+    for direction in ("uphill", "downhill"):
+        episode = _climb(session, direction)
+        assert episode["outcome"] == "PASS", (direction, episode["failure_reason"])
+        assert episode["physics_status"] == "PASS"
+
+    # The original rover's 160 mm wheels meet a 200 mm face.
+    monkeypatch.setattr(slope_runtime, "EXAMPLE_ROVERS", {})
+    original = _climb_session(asset)
+    assert original.robot_kind == "example_four_wheel_rover"
+    assert _climb(original, "uphill")["outcome"] != "PASS"
+
+
 def test_a_box_without_the_flight_in_it_is_rejected(stepped_pack: Path) -> None:
     asset = FieldAsset.open(stepped_pack, verify=True)
     moved = replace(FLIGHT, search_box_xy_m=(2.0, 2.6, -0.5, 0.5))
@@ -339,6 +390,7 @@ def _regression(pack: Path, tmp_path: Path, monkeypatch, season, name: str):
     """Run the suite with the field stages stubbed and the season chosen."""
 
     calls: list = []
+    examples: list = []
 
     def stage(*_args, **_kwargs):
         return {"status": "PASS"}
@@ -347,37 +399,47 @@ def _regression(pack: Path, tmp_path: Path, monkeypatch, season, name: str):
         "check_public_interfaces",
         "check_surface_routes",
         "run_stair_checks",
-        "check_example_episodes",
         "run_tunnel_checks",
     ):
         monkeypatch.setattr(regression, attribute, stage)
     monkeypatch.setattr(
         regression,
+        "check_example_episodes",
+        lambda *args: examples.append(args) or {"status": "PASS"},
+    )
+    monkeypatch.setattr(
+        regression,
         "run_high_point_checks",
-        lambda asset, **kwargs: calls.append(kwargs) or {"status": "PASS"},
+        lambda asset, **kwargs: calls.append(kwargs)
+        or {"status": "PASS", "catalog": {"patches": ["climb"]}},
     )
     if season is not None:
         monkeypatch.setattr(regression.FieldAsset, "season", property(lambda self: season))
     report = regression.run_regression(pack, "source.json", output=tmp_path / f"{name}.json")
-    return report, calls
+    return report, calls, examples
 
 
 def test_the_regression_runs_the_high_points_stage_on_a_2027_field(
     stepped_pack: Path, tmp_path: Path, monkeypatch
 ) -> None:
-    report, calls = _regression(stepped_pack, tmp_path, monkeypatch, RMUC2027, "suite_2027")
+    report, calls, examples = _regression(
+        stepped_pack, tmp_path, monkeypatch, RMUC2027, "suite_2027"
+    )
 
     assert report["sections"]["high_points"]["status"] == "PASS"
     assert calls and calls[0]["profiles"] and calls[0]["source_manifest"] == "source.json"
+    # The published climbs reach the example robots, which run after the stage.
+    assert examples and examples[0][-1] == {"patches": ["climb"]}
 
 
 def test_the_regression_reports_no_high_points_stage_on_a_2026_field(
     stepped_pack: Path, tmp_path: Path, monkeypatch
 ) -> None:
-    report, calls = _regression(stepped_pack, tmp_path, monkeypatch, None, "suite_2026")
+    report, calls, examples = _regression(stepped_pack, tmp_path, monkeypatch, None, "suite_2026")
 
     section = report["sections"]["high_points"]
     assert section["status"] == "NOT_AVAILABLE"
     assert section["reason"] == "season has no high points"
     assert not calls
     assert "high_points" in report["unavailable_sections"]
+    assert examples and examples[0][-1] is None

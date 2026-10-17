@@ -50,8 +50,11 @@ PLATFORM_HALF_BAND_M = 0.08
 PLANE_RESIDUAL_M = 0.02
 PLANE_MAX_TILT = 0.10
 MAX_REACH_M = 3.0
-# Route records: approach on the low level, exit on the platform.
-ROUTE_MARGIN_M = 0.35
+# Route records: approach on the low level, exit on the platform.  A route end
+# is where a robot spawns, so it sits far enough from the nearest riser for a
+# robot about a metre long to start clear of the flight; the step rover's
+# 500 mm wheels reach 0.53 m ahead of its centre.  Both levels have the room.
+ROUTE_MARGIN_M = 0.60
 # The corridor the runtime session holds a robot inside.  It matches the stair
 # routes and is narrower than either flight, so it never constrains a climb.
 ROUTE_WIDTH_M = 0.60

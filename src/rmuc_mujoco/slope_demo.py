@@ -1,4 +1,4 @@
-"""Original four-wheel example robot; not a team's RM robot or learned policy."""
+"""Original example rovers; neither is a team's RM robot or learned policy."""
 
 from __future__ import annotations
 
@@ -38,10 +38,57 @@ def rover_xml() -> str:
     </mujoco>"""
 
 
+# The step rover's drive geometry, shared by its MJCF and its controller.
+STEP_ROVER_WHEEL_RADIUS_M = 0.25
+STEP_ROVER_HALF_TRACK_M = 0.27
+
+
+def step_rover_xml() -> str:
+    """Big-wheel example for the 200 mm high-point risers.
+
+    Its 500 mm wheels meet a 200 mm riser below the axle, so rolling lifts them
+    onto the step, and a stiff speed loop keeps a slow climb from stalling.  The
+    chassis mass sits over the front axle: centred, the rear wheels' torque
+    against a riser lifts the front wheels off the step above, and the rover
+    rears up with nothing left pulling it onto the step.
+    """
+
+    wheels, actuators = [], []
+    for name, x, y in (
+        ("fl", 0.28, STEP_ROVER_HALF_TRACK_M),
+        ("fr", 0.28, -STEP_ROVER_HALF_TRACK_M),
+        ("rl", -0.28, STEP_ROVER_HALF_TRACK_M),
+        ("rr", -0.28, -STEP_ROVER_HALF_TRACK_M),
+    ):
+        wheels.append(f'''
+        <body name="{name}" pos="{x} {y} 0">
+          <joint name="{name}" axis="0 1 0" damping=".05" armature=".02"/>
+          <geom name="wheel_{name}" type="cylinder" size="{STEP_ROVER_WHEEL_RADIUS_M} .04"
+                quat=".7071067812 .7071067812 0 0" mass="1"
+                friction="1 .005 .0001" rgba=".12 .15 .18 1"/>
+        </body>''')
+        actuators.append(
+            f'<velocity name="{name}" joint="{name}" kv="60" ctrlrange="-8 8" forcerange="-20 20"/>'
+        )
+    return f"""<mujoco model="RMUC step example rover">
+      <option timestep=".002" integrator="implicitfast"/>
+      <default><geom contype="1" conaffinity="2" solref=".02 1"/></default>
+      <worldbody><body name="rover" pos="0 0 .4">
+        <freejoint/>
+        <inertial pos=".24 0 0" mass="10" diaginertia=".1047 .2003 .2883"/>
+        <geom name="chassis" type="box" size=".24 .17 .05" rgba=".25 .6 .35 1"/>
+        <geom name="nose" type="box" pos=".21 0 .06" size=".035 .1 .01"
+              contype="0" conaffinity="0" rgba="1 .65 .1 1"/>
+        {"".join(wheels)}
+      </body></worldbody><actuator>{"".join(actuators)}</actuator>
+    </mujoco>"""
+
+
 class RoverController:
     """Wheel-speed example, with route following or simple latched keyboard input."""
 
-    def __init__(self, route, direction, speed):
+    def __init__(self, route, direction, speed, *, half_track_m=0.21, wheel_radius_m=0.08):
+        self.half_track_m, self.wheel_radius_m = half_track_m, wheel_radius_m
         self.configure_route(route, direction, speed)
         self.reset(None, None)
 
@@ -102,6 +149,6 @@ class RoverController:
             data.ctrl[:] = 0.0
         else:
             data.ctrl[:] = [
-                (self.vx - self.yaw * 0.21) / 0.08,
-                (self.vx + self.yaw * 0.21) / 0.08,
+                (self.vx - self.yaw * self.half_track_m) / self.wheel_radius_m,
+                (self.vx + self.yaw * self.half_track_m) / self.wheel_radius_m,
             ] * 2

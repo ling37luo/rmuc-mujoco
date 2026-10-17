@@ -34,6 +34,13 @@ does not remove the full field's `DRAFT_BLOCKED` status.
 - `run` accepts any published route catalog by the `scenario_id` it names, so a
   `high-point-check` report drives `high_point_basic` batches and viewer sessions
   directly. The trajectory-directory guard names the scenario it found.
+- Without `--robot`, `high_point_basic` drives a big-wheel step rover that climbs
+  and descends the 200 mm risers; other scenarios keep the four-wheel rover.
+  High-point route ends sit 0.6 m from the nearest riser instead of 0.35 m, so a
+  robot about a metre long spawns clear of the flight, and `check` drives the
+  high-point routes in its example-robot section.
+- `scenarios --asset` lists the bound pack's own season: a 2027 pack lists
+  `high_point_basic` and no fly ramps instead of failing on a 2026-only entry.
 
 ## [1.3.0] - 2026-10-09
 
