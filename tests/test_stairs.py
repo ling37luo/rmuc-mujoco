@@ -1,17 +1,27 @@
 """Synthetic geometry and real MuJoCo coverage; no official assets downloaded."""
 
+from dataclasses import replace
 import json
 
 import mujoco
 import numpy as np
 import pytest
 
-from rmuc_mujoco import FieldAsset
+from rmuc_mujoco import FieldAsset, source_build
 from rmuc_mujoco.cli import main
+from rmuc_mujoco.manifest import sha256_file
 from rmuc_mujoco.mjcf import FIELD_COLLISION_GEOM_NAME
+from rmuc_mujoco.pack import export_runtime_asset_pack
 from rmuc_mujoco.query import height_at
+from rmuc_mujoco.seasons import RMUC2026
 from rmuc_mujoco.slope_batch import run_slope_batch
-from rmuc_mujoco.stairs import _reference_step, load_stair_catalog, screen_step
+from rmuc_mujoco.stairs import (
+    _reference_step,
+    build_stair_catalog,
+    load_stair_catalog,
+    screen_step,
+)
+from test_pack_profiles import _heightfield_bootstrap_png, _synthetic_source_build
 
 
 def step_samples(edge=0.0):
@@ -217,3 +227,81 @@ def test_paired_checks_do_not_pass_just_because_both_wheels_were_blocked(
     result = run_stair_checks(field, "unused", speeds=[0.3])
     assert result["status"] == "FAIL"
     assert result["summary"]["passed"] == 0
+
+
+def isolated_step_build(tmp_path):
+    """A 1 cm pack with one isolated 200 mm step at x = 0, and its source GLB.
+
+    The GLB holds two parts, a floor slab and the step block; their indices are
+    read back from the loaded GLB, as the catalog addresses them.
+    """
+    trimesh = pytest.importorskip("trimesh")
+    axis = np.round(np.arange(-2.0, 3.0 + 1e-9, 0.01), 6)
+    lateral = np.round(np.arange(-1.0, 1.0 + 1e-9, 0.01), 6)
+    height = np.repeat(np.where(axis >= 0.0, 0.2, 0.0)[None, :], len(lateral), axis=0)
+    source = _synthetic_source_build(tmp_path / "source")
+    manifest_path = source / "manifest.json"
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    collision = manifest["collision"]
+    np.savez_compressed(source / collision["samples_file"], x_m=axis, y_m=lateral, height_m=height)
+    (source / collision["image_file"]).write_bytes(_heightfield_bootstrap_png(height, 0.2))
+    collision.update(
+        rows_y=len(lateral),
+        columns_x=len(axis),
+        half_size_xy_m=[2.5, 1.0],
+        resolution_m=0.01,
+        maximum_height_m=0.2,
+        minimum_height_m=0.0,
+        geom_center_after_translation_m=[0.5, 0.0, 0.0],
+        samples_sha256=sha256_file(source / collision["samples_file"]),
+        image_sha256=sha256_file(source / collision["image_file"]),
+    )
+    manifest["dimensions"] = {
+        "official_core_battlefield_m": [5.0, 2.0],
+        "cad_assembly_outer_bounds_after_translation_m": [[-2.0, -1.0, 0.0], [3.0, 1.0, 0.2]],
+        "cad_assembly_outer_extents_m": [5.0, 2.0, 0.2],
+    }
+    manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+    pack = tmp_path / "pack"
+    export_runtime_asset_pack(source, pack)
+    scene = trimesh.Scene()
+    for index, bounds in enumerate(
+        ([[-2.0, -1.0, -0.05], [3.0, 1.0, 0.0]], [[0.0, -1.0, 0.0], [3.0, 1.0, 0.2]])
+    ):
+        name = f"part_{index}"
+        scene.add_geometry(trimesh.creation.box(bounds=bounds), node_name=name, geom_name=name)
+    glb = source / "field.glb"
+    glb.write_bytes(scene.export(file_type="glb"))
+    manifest["conversion"] = {
+        "colored_intermediate_glb": {"file": "field.glb", "sha256": sha256_file(glb)},
+        "main_floor_height_before_shift_m": 0.0,
+    }
+    manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+    meshes = trimesh.load(glb, force="scene", process=False).dump(concatenate=False)
+    tops = [round(float(mesh.bounds[1][2]), 3) for mesh in meshes]
+    return pack, manifest_path, sha256_file(glb), tops.index(0.2), tops.index(0.0)
+
+
+def test_the_catalog_reads_the_stair_parts_of_the_packs_release(tmp_path, monkeypatch):
+    pack, source_manifest, glb_sha256, step_part, floor_part = isolated_step_build(tmp_path)
+
+    def release(parts):
+        record = replace(RMUC2026.default_source, stair_parts=parts, source_glb_sha256=glb_sha256)
+        monkeypatch.setattr(FieldAsset, "field_source", property(lambda self: record))
+        monkeypatch.setattr(source_build, "source_for_step", lambda sha, size=None: record)
+        return record
+
+    record = release((step_part,))
+    catalog = build_stair_catalog(pack, source_manifest)
+
+    assert catalog["status"] == "PASS_STATIC"
+    assert catalog["source_glb_sha256"] == record.source_glb_sha256
+    assert [patch["route"]["source_part_index"] for patch in catalog["patches"]] == [step_part]
+    route = catalog["patches"][0]["route"]
+    assert route["uphill_unit_xy"] == pytest.approx([1.0, 0.0])
+    assert route["riser_xy_m"][0] == pytest.approx(0.0, abs=1e-6)
+    assert route["source_audit"]["step_height_m"] == pytest.approx(0.2, abs=1e-3)
+
+    # The floor slab has no riser, so a release listing only it has no route.
+    release((floor_part,))
+    assert build_stair_catalog(pack, source_manifest)["status"] == "NO_ISOLATED_SOURCE_ROUTES"

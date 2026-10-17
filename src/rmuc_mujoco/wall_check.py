@@ -71,7 +71,7 @@ def build_wall_catalog(asset, source_manifest):
     layer = asset.collision.get("source_contact_layer")
     if layer is None:
         raise ValueError("wall-check requires a pack with source wall collision")
-    glb, shift, source_hash = verified_source_glb(Path(source_manifest))
+    glb, shift, source_hash = verified_source_glb(Path(source_manifest), asset.field_source)
     meshes = list(trimesh.load(glb, force="scene", process=False).dump(concatenate=False))
     spawn = asset.recommended_spawn
     translation = np.array(

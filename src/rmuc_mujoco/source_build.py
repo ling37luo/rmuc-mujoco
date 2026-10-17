@@ -3,36 +3,51 @@
 from __future__ import annotations
 
 import json
+import math
 from pathlib import Path
 
-import numpy as np
-
-from .collision_candidate import SOURCE_GLB_SHA256
-from .download import OFFICIAL_STEP_SHA256
 from .manifest import sha256_file
+from .seasons import FieldSource, source_for_step
 
 
-def verified_source_glb(source_manifest_path: Path) -> tuple[Path, float, str]:
-    """Return the audited unsimplified GLB, its ground shift and manifest hash."""
+def verified_source_glb(
+    source_manifest_path: str | Path, source: FieldSource | None = None
+) -> tuple[Path, float, str]:
+    """Return the audited unsimplified GLB, its ground shift and manifest hash.
 
-    root = source_manifest_path.expanduser().resolve().parent
-    source = json.loads(source_manifest_path.read_text(encoding="utf-8"))
+    ``source`` is the STEP release the build has to be a conversion of, normally
+    the field pack's own; without it any registered release is accepted.  Each
+    release pins the GLB the builder writes for it, so a check that reads parts
+    by index reads the parts of the release it was written for.
+    """
+
+    manifest_path = Path(source_manifest_path).expanduser().resolve()
+    root = manifest_path.parent
+    document = json.loads(manifest_path.read_text(encoding="utf-8"))
     if (
-        source.get("artifact_type") != "rmuc2026_official_field_mujoco_asset"
-        or source.get("status") != "PASS"
-        or source["source"]["sha256"] != OFFICIAL_STEP_SHA256
+        document.get("artifact_type") != "rmuc2026_official_field_mujoco_asset"
+        or document.get("status") != "PASS"
     ):
-        raise ValueError("source build is not the pinned passing official field")
-    record = source["conversion"]["colored_intermediate_glb"]
-    if record["sha256"] != SOURCE_GLB_SHA256:
+        raise ValueError("source build is not a passing official field")
+    step = document.get("source") or {}
+    registered = source_for_step(step.get("sha256"), step.get("size_bytes"))
+    if registered is None:
+        raise ValueError("source build is not a registered official STEP release")
+    if source is not None and registered != source:
+        raise ValueError(f"source build is not {source.season_id} {source.version}")
+    try:
+        record = document["conversion"]["colored_intermediate_glb"]
+        relative = Path(str(record["file"]))
+        shift = -float(document["conversion"]["main_floor_height_before_shift_m"])
+    except (KeyError, TypeError, ValueError) as exc:
+        raise ValueError(f"source build has no usable conversion record: {exc}") from exc
+    if record.get("sha256") != registered.source_glb_sha256:
         raise ValueError("source GLB is not the audited unsimplified official geometry")
-    relative = Path(str(record["file"]))
-    path = (root / relative).resolve()
-    if relative.is_absolute() or root not in path.parents or not path.is_file():
+    glb = (root / relative).resolve()
+    if relative.is_absolute() or root not in glb.parents or not glb.is_file():
         raise ValueError("source GLB is missing or outside the build")
-    if sha256_file(path) != SOURCE_GLB_SHA256:
+    if sha256_file(glb) != registered.source_glb_sha256:
         raise ValueError("source GLB SHA-256 mismatch")
-    shift = -float(source["conversion"]["main_floor_height_before_shift_m"])
-    if not np.isfinite(shift):
+    if not math.isfinite(shift):
         raise ValueError("source ground shift is non-finite")
-    return path, shift, sha256_file(source_manifest_path)
+    return glb, shift, sha256_file(manifest_path)

@@ -42,6 +42,7 @@ STEP_V2_0_0 = FieldSource(
         TunnelRoof("b_red", 388, (0.5, 1.4, -5.0, -3.6), (0.35, 0.80)),
         TunnelRoof("b_blue", 389, (-1.4, -0.5, 6.84, 8.24), (0.35, 0.80)),
     ),
+    stair_parts=(235, 236, 382, 383, 476, 554, 556, 557, 558),
 )
 
 SEASON = Season(

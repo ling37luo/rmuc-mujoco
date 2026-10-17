@@ -41,6 +41,10 @@ does not remove the full field's `DRAFT_BLOCKED` status.
   high-point routes in its example-robot section.
 - `scenarios --asset` lists the bound pack's own season: a 2027 pack lists
   `high_point_basic` and no fly ramps instead of failing on a 2026-only entry.
+- Source-bound checks accept a retained source build only for the field pack's
+  own STEP release, through one shared gate. Each release pins its reviewed
+  stair parts; `check` reports stairs as unavailable for a release without them
+  instead of failing on another release's part numbers.
 
 ## [1.3.0] - 2026-10-09
 

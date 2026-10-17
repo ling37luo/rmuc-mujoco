@@ -34,7 +34,8 @@ from typing import Any
 
 import numpy as np
 
-from .manifest import FieldAsset, sha256_file
+from .manifest import FieldAsset
+from .source_build import verified_source_glb
 from .query import HeightFieldData, load_heightfield, sample_mujoco_heightfield
 from .seasons import HIGH_POINTS, HighPoint
 
@@ -352,42 +353,6 @@ def measure_high_point(
 # --- source binding ---------------------------------------------------------
 
 
-def verified_source_glb(source_manifest: str | Path, source) -> tuple[Path, float]:
-    """Return a season source's audited unsimplified GLB and its ground shift.
-
-    The season record pins both hashes, so this works for any registered source
-    rather than only the first season's hard-coded one.
-    """
-
-    manifest_path = Path(source_manifest).expanduser().resolve()
-    root = manifest_path.parent
-    document = json.loads(manifest_path.read_text(encoding="utf-8"))
-    if (
-        document.get("artifact_type") != "rmuc2026_official_field_mujoco_asset"
-        or document.get("status") != "PASS"
-    ):
-        raise ValueError("source build is not a passing official field")
-    step = document.get("source", {})
-    if step.get("sha256") != source.step.sha256 or step.get("size_bytes") != source.step.size_bytes:
-        raise ValueError(f"source build is not {source.season_id} {source.version}")
-    try:
-        record = document["conversion"]["colored_intermediate_glb"]
-        relative = Path(str(record["file"]))
-        shift = -float(document["conversion"]["main_floor_height_before_shift_m"])
-    except (KeyError, TypeError, ValueError) as exc:
-        raise ValueError(f"source build has no usable conversion record: {exc}") from exc
-    if record.get("sha256") != source.source_glb_sha256:
-        raise ValueError("source GLB is not the audited unsimplified official geometry")
-    glb = (root / relative).resolve()
-    if relative.is_absolute() or root not in glb.parents or not glb.is_file():
-        raise ValueError("source GLB is missing or outside the build")
-    if sha256_file(glb) != source.source_glb_sha256:
-        raise ValueError("source GLB SHA-256 mismatch")
-    if not math.isfinite(shift):
-        raise ValueError("source ground shift is non-finite")
-    return glb, shift
-
-
 def world_z_shift(asset: FieldAsset, source_manifest: str | Path) -> float:
     """The CAD-to-world z offset of a pack's heightfield.
 
@@ -399,7 +364,7 @@ def world_z_shift(asset: FieldAsset, source_manifest: str | Path) -> float:
     terrain_height_m``.
     """
 
-    _, shift = verified_source_glb(source_manifest, asset.season.default_source)
+    _, shift, _ = verified_source_glb(source_manifest, asset.field_source)
     return shift - float(asset.recommended_spawn["terrain_height_m"])
 
 
@@ -478,7 +443,7 @@ def compare_with_source(
     import trimesh
 
     source = asset.season.default_source
-    glb, _ = verified_source_glb(source_manifest, source)
+    glb, _, _ = verified_source_glb(source_manifest, source)
     z_shift = world_z_shift(asset, source_manifest)
     meshes = list(trimesh.load(glb, force="scene", process=False).dump(concatenate=False))
     heightfield = load_heightfield(asset) if grid is None else grid
@@ -676,5 +641,4 @@ __all__ = [
     "load_high_point_catalog",
     "measure_flight",
     "measure_high_point",
-    "verified_source_glb",
 ]

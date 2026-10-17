@@ -370,10 +370,16 @@ def run_regression(
 
     stage("interfaces", lambda: check_public_interfaces(asset, selected))
     surfaces = stage("slope_fly_contacts", lambda: check_surface_routes(asset, selected, speeds))
-    stairs = stage("stairs", lambda: run_stair_checks(asset, source_manifest, speeds=speeds))
 
     def absent(reason):
         return dict(status="NOT_AVAILABLE", reason=reason)
+
+    stairs = stage(
+        "stairs",
+        lambda: run_stair_checks(asset, source_manifest, speeds=speeds)
+        if asset.field_source.stair_parts
+        else absent("source release has no reviewed stair parts"),
+    )
 
     perimeter = stage(
         "perimeter",

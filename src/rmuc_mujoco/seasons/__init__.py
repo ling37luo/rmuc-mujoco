@@ -106,6 +106,9 @@ class FieldSource:
     source_glb_sha256: str
     tunnel_roofs: tuple[TunnelRoof, ...] = ()
     high_points: tuple[HighPoint, ...] = ()
+    # Parts of that GLB reviewed for isolated stair risers.  A release without
+    # them has no stair evidence yet; the stair check refuses it.
+    stair_parts: tuple[int, ...] = ()
 
 
 @dataclass(frozen=True)

@@ -138,7 +138,7 @@ def build_corner_catalog(asset, source_manifest, perimeter_catalog=None):
 
     perimeter = perimeter_catalog or build_perimeter_catalog(asset, source_manifest)
     grid = load_heightfield(asset)
-    glb, shift, source_hash = verified_source_glb(Path(source_manifest))
+    glb, shift, source_hash = verified_source_glb(Path(source_manifest), asset.field_source)
     meshes = list(trimesh.load(glb, force="scene", process=False).dump(concatenate=False))
     spawn = asset.recommended_spawn
     translation = np.array(

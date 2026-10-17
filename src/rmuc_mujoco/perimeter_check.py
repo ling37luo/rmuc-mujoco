@@ -70,7 +70,7 @@ def build_perimeter_catalog(asset, source_manifest):
     fence = field.manifest.get("perimeter_fence")
     if fence is None:
         raise ValueError("perimeter-check requires a pack with a perimeter fence")
-    glb, shift, source_hash = verified_source_glb(Path(source_manifest))
+    glb, shift, source_hash = verified_source_glb(Path(source_manifest), field.field_source)
     meshes = list(trimesh.load(glb, force="scene", process=False).dump(concatenate=False))
     spawn = field.recommended_spawn
     translation = np.array(

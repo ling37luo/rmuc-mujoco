@@ -15,15 +15,12 @@ from pathlib import Path
 
 import numpy as np
 
-from .collision_candidate import SOURCE_GLB_SHA256
 from .manifest import FieldAsset
 from .query import load_heightfield
 from .source_build import verified_source_glb
 from .scenarios import scenario_descriptor
 from .query import sample_mujoco_heightfield
 
-# Part identities refer to the pinned unsimplified GLB, not simplified visuals.
-REVIEW_PARTS = (235, 236, 382, 383, 476, 554, 556, 557, 558)
 SAMPLE_SPACING_M = 0.0025
 INTERIOR_ERROR_M = 0.001
 SEAM_ERROR_M = 0.015
@@ -105,9 +102,13 @@ def build_stair_catalog(asset, source_manifest):
     import trimesh
 
     field = asset if isinstance(asset, FieldAsset) else FieldAsset.open(asset, verify=True)
-    glb, ground_shift, source_hash = verified_source_glb(Path(source_manifest))
+    # Part indices address the release's pinned unsimplified GLB, not its visuals.
+    release = field.field_source
+    if not release.stair_parts:
+        raise ValueError(f"{release.season_id} {release.version} has no reviewed stair parts")
+    glb, ground_shift, source_hash = verified_source_glb(Path(source_manifest), release)
     meshes = list(trimesh.load(glb, force="scene", process=False).dump(concatenate=False))
-    if len(meshes) != 559:
+    if len(meshes) <= max(release.stair_parts):
         raise ValueError("source GLB part order changed")
     spawn = field.recommended_spawn
     translation = np.array(
@@ -121,7 +122,7 @@ def build_stair_catalog(asset, source_manifest):
     along = np.linspace(-0.7, 0.7, 561)
     across = np.linspace(-ROUTE_WIDTH_M / 2, ROUTE_WIDTH_M / 2, 7)
     patches, rejected = [], []
-    for part in REVIEW_PARTS:
+    for part in release.stair_parts:
         mesh = meshes[part]
         faces = np.flatnonzero((np.abs(mesh.face_normals[:, 2]) < 0.05) & (mesh.area_faces > 0.04))
         for face in faces:
@@ -181,7 +182,7 @@ def build_stair_catalog(asset, source_manifest):
         "profile_hash": descriptor["profile_hash"],
         "heightfield_samples_sha256": field.collision["samples_sha256"],
         "cad_manifest_sha256": source_hash,
-        "source_glb_sha256": SOURCE_GLB_SHA256,
+        "source_glb_sha256": release.source_glb_sha256,
         "patches": patches,
         "rejected": rejected,
         "scope": "isolated risers in reviewed source parts; not every stair, wall or multilevel area",

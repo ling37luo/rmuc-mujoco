@@ -24,7 +24,9 @@ def audit_fly_ramp_source_overlap(asset: FieldAsset, source_manifest_path: Path)
 
     if not asset.hashes_verified:
         raise ValueError("ramp source audit requires a fully verified runtime pack")
-    glb_path, shift, source_manifest_sha = verified_source_glb(source_manifest_path)
+    glb_path, shift, source_manifest_sha = verified_source_glb(
+        source_manifest_path, asset.field_source
+    )
     import trimesh
 
     scene = trimesh.load(glb_path, force="scene", process=False)
