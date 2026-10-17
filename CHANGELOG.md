@@ -45,6 +45,8 @@ does not remove the full field's `DRAFT_BLOCKED` status.
   own STEP release, through one shared gate. Each release pins its reviewed
   stair parts; `check` reports stairs as unavailable for a release without them
   instead of failing on another release's part numbers.
+- RMUC 2027 records its two reviewed stair parts, so `stairs-check` and `check`
+  cover the two central 200 mm steps on 2027 packs as they do on 2026 packs.
 
 ## [1.3.0] - 2026-10-09
 

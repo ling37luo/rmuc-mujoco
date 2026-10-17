@@ -83,6 +83,11 @@ STEP_V1_0_0 = FieldSource(
             floor_flight_xy=(0.0, 1.0),
         ),
     ),
+    # Of the 19 parts with riser-like faces, only these two hold an isolated
+    # step that the stair screening accepts: the 200 mm central steps at CAD
+    # x = -4.82 and x = +4.82, the steps the 2026 routes use.  Each merges the
+    # 2026 tunnel-roof and stair parts (554 and 556, 557 and 558).
+    stair_parts=(226, 229),
 )
 
 SEASON = Season(
