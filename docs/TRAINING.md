@@ -130,6 +130,23 @@ terrain before reaching the fence; these are not full-robot access routes.
 Existing reference-floor differences are reported separately from dynamic passes.
 All available profiles use identical inputs and are compared step by step.
 
+RMUC 2026 draws its two road-area walls as closed convex parts, and the layer
+uses them as drawn. RMUC 2027 draws the same walls merged with the road beside
+them, so each wall mesh is the convex hull of its part's vertices inside a box
+the season records. Every part triangle in the box lies on the hull; the hull
+adds only the underside, which the terrain hides, and a 0.011 m² strip where the
+road meets the wall's inner foot, at or below the road surface. Under a 2027
+wall the heightfield follows that underside instead of dropping to the floor,
+and the few wall-end samples the builder's spike filter left low are counted in
+the transfer, so a 2027 build needs no separate wall-tip repair.
+
+On a 2027 pack `wall-check` runs both sides and the fence junction of each wall.
+Each wall's free end stands on the road block: below the wall's sloped bottom
+edge the end face is the road's, owned by the heightfield, so the end-cap probes
+are listed under `skipped_routes` rather than run. The two fence corners the
+bases fill leave no supported start for the local probe; they are marked
+`SOURCE_OBSTRUCTED`, and the corner section approaches them with the whole rover.
+
 ## Tunnels
 
 Tunnel roofs are recorded by the heightfield as solid blocks. `tunnel-pack`

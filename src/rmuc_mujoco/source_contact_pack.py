@@ -87,6 +87,9 @@ def export_source_wall_pack(
         raise ValueError("source-wall export requires a schema-4 runtime pack")
     if asset.collision.get("source_contact_layer") is not None:
         raise ValueError("runtime pack already has a source contact layer")
+    release = asset.field_source
+    if release.wall_layer_kind is None:
+        raise ValueError(f"{release.season_id} {release.version} records no source walls")
     field, walls, report = build_verified_wall_replacement(
         Path(source_build).expanduser().resolve(), asset.root
     )
@@ -140,7 +143,7 @@ def export_source_wall_pack(
             _update_file_record(manifest, staging, relative, role="source_contact_mesh")
             mesh_records.append(
                 {
-                    "name": f"rmuc2026_official_wall_{part}",
+                    "name": f"{release.season_id}_official_wall_{part}",
                     "file": relative,
                     "sha256": sha256_file(path),
                     "source_part_index": part,
@@ -156,7 +159,7 @@ def export_source_wall_pack(
             _update_file_record(manifest, staging, relative)
 
         collision["source_contact_layer"] = {
-            "kind": CONTACT_LAYER_KIND,
+            "kind": release.wall_layer_kind,
             "status": "EXPERIMENTAL_BLOCKED",
             "source_manifest_sha256": report["source_identity"]["source_manifest_sha256"],
             "source_glb_sha256": report["source_identity"]["source_glb_sha256"],

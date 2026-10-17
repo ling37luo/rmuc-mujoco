@@ -9,6 +9,7 @@ from .. import (
     OfficialFile,
     ReviewedRulebook,
     Season,
+    SourceWall,
     SurfaceGuideSource,
     TunnelRoof,
 )
@@ -45,6 +46,12 @@ STEP_V2_0_0 = FieldSource(
     stair_parts=(235, 236, 382, 383, 476, 554, 556, 557, 558),
     # The fly ramps reach past both ends of the 28 m deck.
     cad_outer_extents_xy_m=(29.752008274927, 16.003130912781),
+    # The road-area walls facing the supply zones are closed convex parts.
+    source_walls=(
+        SourceWall(402, "high", 7900, 12, 20, 0.7058543477399379),
+        SourceWall(403, "low", 7900, 12, 20, 0.7058552899465835),
+    ),
+    wall_layer_kind="official_source_convex_walls_402_403_v1",
 )
 
 SEASON = Season(

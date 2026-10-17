@@ -90,6 +90,31 @@ class HighPoint:
 
 
 @dataclass(frozen=True)
+class SourceWall:
+    """An official wall that the optional source-wall layer gives convex contact.
+
+    An exact wall is one closed convex part of the build GLB.  A derived wall is
+    the convex hull of one part's vertices inside ``hull_box_xy_m`` (CAD frame,
+    before translation), for a wall the drawing merges into a larger part; the
+    hull is checked face by face against that part's own triangles.
+    """
+
+    source_part_index: int
+    # The y end that stands free; the other end is built into the perimeter.
+    free_end: str
+    # 1 cm heightfield nodes under the wall roof, all handed to the wall mesh.
+    roof_nodes: int
+    hull_vertices: int
+    hull_triangles: int
+    hull_volume_m3: float
+    hull_box_xy_m: tuple[float, float, float, float] | None = None
+    # Derived walls only: roof nodes at the wall ends that the builder's spike
+    # filter left low, and side area of the hull that no part triangle covers.
+    spike_filtered_end_nodes: int = 0
+    uncovered_side_area_m2: float = 0.0
+
+
+@dataclass(frozen=True)
 class FieldSource:
     """One official STEP release of a season's field drawing."""
 
@@ -112,6 +137,10 @@ class FieldSource:
     # Outer XY extents of the CAD assembly the perimeter fence is placed in.  A
     # build with another outline, or a release without one, gets no fence.
     cad_outer_extents_xy_m: tuple[float, float] | None = None
+    # Walls of the optional source-wall layer and the layer kind a pack records
+    # for them.  A release without walls offers no source-wall layer.
+    source_walls: tuple[SourceWall, ...] = ()
+    wall_layer_kind: str | None = None
 
 
 @dataclass(frozen=True)
@@ -197,6 +226,7 @@ __all__ = [
     "ReviewedRulebook",
     "SEASONS",
     "Season",
+    "SourceWall",
     "SurfaceGuideSource",
     "TUNNELS",
     "TunnelRoof",

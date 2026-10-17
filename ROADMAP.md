@@ -26,7 +26,7 @@ performance matrix, visible frame measurements and PhysX region probes through
 | 4 | Wall contact and collision ownership | High | Complete for source-bound side/end and junction routes |
 | 5 | Portable full-field interaction regression | After 2–4 | Complete; sectioned `check` suite with public robots and generated routes |
 | 6 | Parallel performance and profile selection | After baseline regression | Complete for MuJoCo 1/4/16 environments, visible profile comparison and PhysX region contact through 64 |
-| 7 | Multi-season fields (RMUC 2027) | Next | Registry, 2027 source and tunnel collision (both seasons) and the high-point stairs and routes complete; 2027 source checks and a tunnel training scenario open |
+| 7 | Multi-season fields (RMUC 2027) | Next | Complete for RMUC 2027 STEP V1.0.0: every `check` section available and passing on the full 2027 pack; a tunnel training scenario open |
 
 ### 1. Public documentation
 
@@ -118,10 +118,14 @@ fly-ramp code lives in `seasons/rmuc2026`. `tunnel-pack` gives both seasons'
 tunnels source-derived roofs over a lowered channel floor. `high-point-check`
 measures each 2027 high point against the drawing, probes its levels and risers,
 and publishes the two flights of each high point as climb routes for
-`high_point_basic`. Remaining for 2027: the 2027 source-part data for
-stair/wall/edge checks, and a tunnel training scenario (through and over).
+`high_point_basic`, driven by the step rover. Each STEP release records its stair
+parts, fence outline and source walls; RMUC 2027 merges its road-area walls into
+larger parts, so each is derived as the convex hull of its part's vertices in a
+recorded box. A 2027 pack with the fence, lite profile, wall and tunnel layers
+passes `check` with every section available.
 
-Done when a 2027 pack passes `check` with those sections available.
+Remaining: a tunnel training scenario (through and over). The experimental
+edge-void build option still covers only the 2026 GLB.
 
 ## Scope
 

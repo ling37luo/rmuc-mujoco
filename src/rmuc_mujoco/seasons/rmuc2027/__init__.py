@@ -17,6 +17,7 @@ from .. import (
     OfficialFile,
     ReviewedRulebook,
     Season,
+    SourceWall,
     TunnelRoof,
 )
 
@@ -90,6 +91,19 @@ STEP_V1_0_0 = FieldSource(
     stair_parts=(226, 229),
     # No fly ramps: in x the outline is the 28 m deck itself.
     cad_outer_extents_xy_m=(27.999991909907, 16.003130912781),
+    # The same road-area walls as 2026, merged with the road beside them into
+    # parts 114 and 121, so each is the hull of the 13 part vertices in its box.
+    # All 18 part triangles there lie on the hull; the 0.01125 m2 of side it adds
+    # is where the road meets the wall's inner foot, at or below the road
+    # surface.  As in 2026, the builder's spike filter left 4 and 3 roof samples
+    # low at the wall ends.
+    source_walls=(
+        SourceWall(
+            114, "high", 7947, 13, 22, 0.6287088663, (-10.50, -10.30, -5.90, -1.92), 4, 0.01125
+        ),
+        SourceWall(121, "low", 7942, 13, 22, 0.6287067816, (10.30, 10.50, 5.17, 9.15), 3, 0.01125),
+    ),
+    wall_layer_kind="official_source_derived_convex_walls_v1",
 )
 
 SEASON = Season(

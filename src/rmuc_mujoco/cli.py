@@ -158,7 +158,7 @@ def build_parser() -> argparse.ArgumentParser:
     lite.add_argument("--interactive-lite-faces", type=int, required=True)
     wall_pack = commands.add_parser(
         "source-wall-pack",
-        help="make a local experimental pack with official-source 402/403 wall contact",
+        help="make a local experimental pack with convex official-source wall contact",
     )
     wall_pack.add_argument("source_build", type=Path)
     wall_pack.add_argument("runtime_pack", type=Path)

@@ -51,6 +51,12 @@ does not remove the full field's `DRAFT_BLOCKED` status.
   records the CAD outline the fence is calibrated to: the 2026 outline reaches
   past the deck to the fly ramps, 2027's is the 28 m deck itself. On a fenced
   2027 pack `check` runs the perimeter and corner sections.
+- `source-wall-pack` and `wall-check` work on RMUC 2027 packs. Each STEP release
+  records its source walls. RMUC 2027 merges the road-area walls with the road
+  beside them, so each wall is the convex hull of its part's vertices in a
+  recorded box, refused if a part triangle there leaves the hull or the hull
+  adds side area the record does not account for. The RMUC 2026 wall pack is
+  unchanged byte for byte.
 
 ## [1.3.0] - 2026-10-09
 

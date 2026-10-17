@@ -1256,11 +1256,16 @@ def _validate_source_contact_layer(
     }
     if set(layer) != expected_keys:
         raise ManifestError("source_contact_layer contains unsupported or missing fields")
+    release = source_for_step(manifest["source_identity"]["official_step_sha256"])
+    if release is None or not release.source_walls or release.wall_layer_kind is None:
+        raise ManifestError("source_contact_layer: the pack's STEP release records no walls")
+    parts = tuple(wall.source_part_index for wall in release.source_walls)
+    roof_nodes = {wall.source_part_index: wall.roof_nodes for wall in release.source_walls}
     if (
-        layer["kind"] != "official_source_convex_walls_402_403_v1"
+        layer["kind"] != release.wall_layer_kind
         or layer["status"] != "EXPERIMENTAL_BLOCKED"
         or layer["source_manifest_sha256"] != manifest["source_identity"]["field_manifest_sha256"]
-        or layer["source_glb_sha256"] != SOURCE_GLB_SHA256
+        or layer["source_glb_sha256"] != release.source_glb_sha256
         or layer["updated_collision_samples_sha256"] != _samples_before_tunnels(collision)
         or not isinstance(layer["claim_boundary"], str)
         or not layer["claim_boundary"]
@@ -1275,23 +1280,25 @@ def _validate_source_contact_layer(
         or collision.get("verified_wall_tip_repair") is not None
     ):
         raise ManifestError("source contact layer must supersede the original wall roof samples")
-    if (
-        _integer(layer["roof_nodes_transferred"], label="roof_nodes_transferred", minimum=1)
-        != 15800
+    if _integer(layer["roof_nodes_transferred"], label="roof_nodes_transferred", minimum=1) != sum(
+        roof_nodes.values()
     ):
         raise ManifestError("source contact layer has the wrong transferred roof count")
     regions = layer["ownership_regions"]
     if (
         not isinstance(regions, list)
-        or len(regions) != 2
+        or len(regions) != len(parts)
         or not all(isinstance(item, dict) for item in regions)
-        or {item.get("source_part_index") for item in regions} != {402, 403}
-        or any(item.get("roof_nodes_transferred") != 7900 for item in regions)
+        or {item.get("source_part_index") for item in regions} != set(parts)
+        or any(
+            item.get("roof_nodes_transferred") != roof_nodes[item["source_part_index"]]
+            for item in regions
+        )
     ):
         raise ManifestError("source contact layer ownership regions are invalid")
     records = layer["mesh_geoms"]
-    if not isinstance(records, list) or len(records) != 2:
-        raise ManifestError("source contact layer requires exactly two wall meshes")
+    if not isinstance(records, list) or len(records) != len(parts):
+        raise ManifestError("source contact layer requires one mesh per recorded wall")
     by_part: dict[int, Mapping[str, Any]] = {}
     for index, value in enumerate(records):
         record = _mapping(value, label=f"source_contact_layer.mesh_geoms[{index}]")
@@ -1307,9 +1314,9 @@ def _validate_source_contact_layer(
         }:
             raise ManifestError("source contact mesh record contains unsupported fields")
         part = record["source_part_index"]
-        if part not in (402, 403) or part in by_part:
+        if part not in parts or part in by_part:
             raise ManifestError("source contact mesh part indices are invalid")
-        name = f"rmuc2026_official_wall_{part}"
+        name = f"{release.season_id}_official_wall_{part}"
         relative = f"collision/official_wall_{part}.obj"
         if record["name"] != name or record["file"] != relative:
             raise ManifestError("source contact mesh name or path is invalid")
@@ -1327,7 +1334,7 @@ def _validate_source_contact_layer(
         if friction != (1.0, 0.005, 0.0001) or solref != (0.005, 1.0):
             raise ManifestError("source contact mesh physical parameters are invalid")
         by_part[part] = record
-    return tuple(by_part[part] for part in (402, 403))
+    return tuple(by_part[part] for part in parts)
 
 
 def _validate_runtime_profiles(

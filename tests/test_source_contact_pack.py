@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from dataclasses import replace
 import json
 from pathlib import Path
 import xml.etree.ElementTree as ET
@@ -16,7 +17,8 @@ from rmuc_mujoco.lite_profile import export_interactive_lite_pack
 from rmuc_mujoco.manifest import sha256_file
 from rmuc_mujoco.pack import export_runtime_asset_pack
 from rmuc_mujoco.query import HeightFieldData, load_heightfield
-from rmuc_mujoco import source_contact_pack
+from rmuc_mujoco import manifest as manifest_module, source_contact_pack
+from rmuc_mujoco.seasons import RMUC2026, SourceWall
 from test_pack_profiles import _synthetic_source_build
 
 
@@ -171,3 +173,51 @@ def test_source_wall_pack_cli_and_schema_two_rejection(
     with pytest.raises(ValueError, match="schema-4"):
         source_contact_pack.export_source_wall_pack(source, schema_two, rejected)
     assert not rejected.exists()
+
+
+def test_a_release_with_derived_walls_records_its_own_layer(
+    lite_pack_with_stub_source_walls: tuple[Path, Path], tmp_path: Path, monkeypatch
+) -> None:
+    """Layer kind, wall parts, roof counts and mesh names come from the release."""
+
+    source, lite_pack = lite_pack_with_stub_source_walls
+    release = replace(
+        RMUC2026.default_source,
+        source_walls=(
+            SourceWall(114, "high", 7947, 13, 22, 0.63, (-10.5, -10.3, -5.9, -1.92), 4, 0.01125),
+            SourceWall(121, "low", 7942, 13, 22, 0.63, (10.3, 10.5, 5.17, 9.15), 3, 0.01125),
+        ),
+        wall_layer_kind="official_source_derived_convex_walls_v1",
+    )
+    monkeypatch.setattr(FieldAsset, "field_source", property(lambda self: release))
+    monkeypatch.setattr(manifest_module, "source_for_step", lambda sha, size=None: release)
+    exact_stub = source_contact_pack.build_verified_wall_replacement
+
+    def derived_stub(source_build: Path, runtime_pack: Path):
+        field, walls, report = exact_stub(source_build, runtime_pack)
+        report["walls"] = [
+            {"source_part_index": 114, "roof_nodes_transferred": 7947},
+            {"source_part_index": 121, "roof_nodes_transferred": 7942},
+        ]
+        return field, {114: walls[402], 121: walls[403]}, report
+
+    monkeypatch.setattr(source_contact_pack, "build_verified_wall_replacement", derived_stub)
+    output = tmp_path / "wall_pack"
+    result = source_contact_pack.export_source_wall_pack(source, lite_pack, output)
+    FieldAsset.open(output, verify=True)
+
+    layer = result["collision"]["source_contact_layer"]
+    assert layer["kind"] == "official_source_derived_convex_walls_v1"
+    assert layer["roof_nodes_transferred"] == 15889
+    assert [geom["name"] for geom in layer["mesh_geoms"]] == [
+        "rmuc2026_official_wall_114",
+        "rmuc2026_official_wall_121",
+    ]
+    # Another release's layer kind does not validate on this release's pack.
+    manifest = json.loads((output / "manifest.json").read_text(encoding="utf-8"))
+    manifest["collision"]["source_contact_layer"]["kind"] = (
+        "official_source_convex_walls_402_403_v1"
+    )
+    _rewrite_manifest(output, manifest)
+    with pytest.raises(ManifestError, match="source or status contract"):
+        FieldAsset.open(output, verify=False)

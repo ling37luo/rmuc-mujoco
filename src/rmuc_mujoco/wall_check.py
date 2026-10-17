@@ -20,6 +20,7 @@ from .perimeter_check import (
 from .query import load_heightfield
 from .source_build import verified_source_glb
 from .stairs import _source_top
+from .wall_active_contact import verified_derived_wall
 from .wall_tip_repair import _projected_top
 from .query import sample_mujoco_heightfield
 
@@ -36,8 +37,13 @@ def _surface_triangles(mesh, reference_vertices):
     return sorted(tuple(sorted(indices[face])) for face in mesh.faces)
 
 
-def audit_wall_ownership(grid, source_mesh, runtime_mesh, region):
-    """Compare actual mesh triangles and the transferred roof samples to source."""
+def audit_wall_ownership(grid, source_mesh, runtime_mesh, region, *, derived=False):
+    """Compare actual mesh triangles and the transferred roof samples to source.
+
+    An exact wall's roof samples were lowered to the lower flank.  A derived
+    wall's were raised to its underside where that is higher, and only samples
+    its roof covers were changed.
+    """
     source = np.unique(np.round(source_mesh.vertices, 7), axis=0)
     runtime = np.unique(np.round(runtime_mesh.vertices, 7), axis=0)
     mesh_matches = source.shape == runtime.shape and bool(
@@ -50,19 +56,56 @@ def audit_wall_ownership(grid, source_mesh, runtime_mesh, region):
     lower_flank = np.minimum(grid.height_m[r0 : r1 + 1, c0 - 2], grid.height_m[r0 : r1 + 1, c1 + 2])
     actual = grid.height_m[r0 : r1 + 1, c0 : c1 + 1]
     roof = _projected_top(source_mesh, grid.x_m[c0 : c1 + 1], grid.y_m[r0 : r1 + 1])
-    floor_error = float(np.max(np.abs(actual - lower_flank[:, None])))
-    roof_clearance = float(np.min(roof - actual))
-    passed = (
-        mesh_matches and np.isfinite(roof).all() and floor_error < 1e-6 and roof_clearance > 0.1
-    )
+    if derived:
+        inverted = source_mesh.copy()
+        inverted.vertices[:, 2] *= -1.0
+        bottom = -_projected_top(inverted, grid.x_m[c0 : c1 + 1], grid.y_m[r0 : r1 + 1])
+        covered = np.isfinite(roof)
+        expected = np.maximum(lower_flank[:, None], bottom)
+        floor_error = float(np.max(np.abs(actual - expected)[covered]))
+        # Along the inner foot the roof comes down to the road the wall meets,
+        # so a derived wall needs only that no sample rises above its roof.
+        roof_clearance = float(np.min((roof - actual)[covered]))
+        passed = mesh_matches and covered.any() and floor_error < 1e-6 and roof_clearance > -1e-6
+        transferred = int(covered.sum())
+    else:
+        floor_error = float(np.max(np.abs(actual - lower_flank[:, None])))
+        roof_clearance = float(np.min(roof - actual))
+        passed = (
+            mesh_matches and np.isfinite(roof).all() and floor_error < 1e-6 and roof_clearance > 0.1
+        )
+        transferred = int(actual.size)
     return {
         "source_part_index": region["source_part_index"],
         "status": "PASS" if passed else "FAIL",
         "mesh_matches_source": mesh_matches,
-        "transferred_samples": int(actual.size),
+        "transferred_samples": transferred,
         "max_floor_error_m": floor_error,
         "min_roof_to_heightfield_separation_m": roof_clearance,
     }
+
+
+FREE_END_ON_ROAD = (
+    "the free end stands on the road block: below the wall's sloped bottom edge "
+    "the end face is the road's, which the heightfield owns"
+)
+
+
+def free_end_stands_on_road(source_mesh, end_y, inward_sign):
+    """Whether a wall's bottom edge rises across its free end.
+
+    An exact wall reaches the floor along its whole free end.  A derived wall
+    whose underside meets the road beside it has a sloped bottom edge there,
+    and a wheel driven at that end meets the road block before the wall.
+    """
+
+    low, high = source_mesh.bounds
+    inverted = source_mesh.copy()
+    inverted.vertices[:, 2] *= -1.0
+    xs = np.linspace(low[0], high[0], 9)
+    underside = -_projected_top(inverted, xs, np.array([end_y - 0.005 * inward_sign]))[0]
+    finite = underside[np.isfinite(underside)]
+    return finite.size > 0 and float(np.ptp(finite)) > 0.05
 
 
 def build_wall_catalog(asset, source_manifest):
@@ -83,13 +126,16 @@ def build_wall_catalog(asset, source_manifest):
     )
     grid = load_heightfield(asset)
     records = {r["source_part_index"]: r for r in layer["mesh_geoms"]}
-    routes, ownership = [], []
+    walls = {wall.source_part_index: wall for wall in asset.field_source.source_walls}
+    routes, ownership, skipped = [], [], []
     for region in layer["ownership_regions"]:
         part = region["source_part_index"]
-        source = meshes[part].copy()
+        wall = walls[part]
+        derived = wall.hull_box_xy_m is not None
+        source = verified_derived_wall(meshes[part], wall)[0] if derived else meshes[part].copy()
         source.apply_translation(translation)
         runtime = trimesh.load(asset.root / records[part]["file"], process=False)
-        ownership.append(audit_wall_ownership(grid, source, runtime, region))
+        ownership.append(audit_wall_ownership(grid, source, runtime, region, derived=derived))
         low, high = source.bounds
         for side, face, sign in (("left", low[0], -1), ("right", high[0], 1)):
             for fraction in (0.25, 0.5, 0.75):
@@ -108,22 +154,29 @@ def build_wall_catalog(asset, source_manifest):
                 )
         # One end of each wall is embedded in the perimeter. Its low/high side
         # junctions are exercised from inside; only the free end has an end-cap approach.
-        end, sign = (high[1], 1) if part == 402 else (low[1], -1)
-        for offset in (-0.045, 0, 0.045):
-            routes.append(
-                dict(
-                    id=f"wall_{part}_end_{offset:+.3f}",
-                    axis=1,
-                    inward_sign=sign,
-                    face_m=float(end),
-                    transverse_center_m=float((low[0] + high[0]) / 2 + offset),
-                    side="free_end",
-                    kind="end",
-                    fence_geom=records[part]["name"],
-                    slide=False,
-                )
+        end, sign = (high[1], 1) if wall.free_end == "high" else (low[1], -1)
+        end_routes = [
+            dict(
+                id=f"wall_{part}_end_{offset:+.3f}",
+                axis=1,
+                inward_sign=sign,
+                face_m=float(end),
+                transverse_center_m=float((low[0] + high[0]) / 2 + offset),
+                side="free_end",
+                kind="end",
+                fence_geom=records[part]["name"],
+                slide=False,
             )
-        joined_y = low[1] + 0.45 if part == 402 else high[1] - 0.45
+            for offset in (-0.045, 0, 0.045)
+        ]
+        if derived and free_end_stands_on_road(source, end, sign):
+            skipped += [
+                dict(id=route["id"], kind="end", status="NOT_RUN", reason=FREE_END_ON_ROAD)
+                for route in end_routes
+            ]
+        else:
+            routes.extend(end_routes)
+        joined_y = low[1] + 0.45 if wall.free_end == "high" else high[1] - 0.45
         for side, face, sign in (("left", low[0], -1), ("right", high[0], 1)):
             routes.append(
                 dict(
@@ -154,7 +207,25 @@ def build_wall_catalog(asset, source_manifest):
             "MATCH" if route["max_source_error_m"] <= 0.001 else "PROXY_FLOOR"
         )
 
-    corners = fence_corners(asset.manifest["perimeter_fence"])
+    corners = _corner_catalog(asset.manifest, grid, meshes, translation)
+    catalog = {
+        "source_manifest_sha256": asset.manifest_sha256,
+        "cad_manifest_sha256": source_hash,
+        "source_glb_sha256": sha256_file(glb),
+        "ownership": ownership,
+        "routes": routes,
+        "corners": corners,
+        "scope": "Wall low/high sides, free ends and fence junctions. Corner trials are local 120mm probes; they do not establish a full robot route from the field interior. Existing proxy ground is explicitly reported.",
+    }
+    if skipped:
+        catalog["skipped_routes"] = skipped
+    return catalog
+
+
+def _corner_catalog(manifest, grid, meshes, translation):
+    """A local wheel start near each fence corner, on the nearest supported floor."""
+
+    corners = fence_corners(manifest["perimeter_fence"])
     offsets = np.linspace(-0.075, 0.075, 7)
     dx, dy = np.meshgrid(offsets, offsets)
     for corner in corners:
@@ -170,7 +241,15 @@ def build_wall_catalog(asset, source_manifest):
                 if np.ptp(z) < 0.015 and -0.011 <= z.min() and z.max() < 0.6:
                     candidates.append((float(np.linalg.norm([x, y])), center, xy, z))
         if not candidates:
-            raise ValueError(f"no supported local wheel start at corner {corner['id']}")
+            # A structure fills the corner (the RMUC 2027 bases do), so no fence
+            # corner is left for a local probe to reach.  The corner section
+            # approaches it with the whole rover from the nearest open floor.
+            corner.update(
+                corner_access="SOURCE_OBSTRUCTED",
+                local_probe="NOT_RUN",
+                local_probe_reason="no supported wheel start within 1.3 m of the corner",
+            )
+            continue
         _, center, xy, z = min(candidates, key=lambda row: row[0])
         source = _source_top(meshes, xy.reshape(-1, 2), translation).reshape(z.shape)
         source_error = float(np.max(np.abs(source - z))) if np.isfinite(source).all() else None
@@ -187,15 +266,7 @@ def build_wall_catalog(asset, source_manifest):
             face_m=float(origin[0]),
             transverse_center_m=float(origin[1]),
         )
-    return {
-        "source_manifest_sha256": asset.manifest_sha256,
-        "cad_manifest_sha256": source_hash,
-        "source_glb_sha256": sha256_file(glb),
-        "ownership": ownership,
-        "routes": routes,
-        "corners": corners,
-        "scope": "Wall low/high sides, free ends and fence junctions. Corner trials are local 120mm probes; they do not establish a full robot route from the field interior. Existing proxy ground is explicitly reported.",
-    }
+    return corners
 
 
 def run_corner_route(model, corner, speed):
@@ -304,7 +375,8 @@ def run_wall_checks(pack, source_manifest, *, profiles=None, speeds=(0.3, 0.5, 1
     catalog = build_wall_catalog(asset, source_manifest)
     grid = load_heightfield(asset)
     trials, parity, solvers = [], [], {}
-    for route in catalog["routes"] + catalog["corners"]:
+    probed = [corner for corner in catalog["corners"] if "start_xy_m" in corner]
+    for route in catalog["routes"] + probed:
         corner = "start_xy_m" in route
         if not corner:
             o, n, t = _route_frame(route)

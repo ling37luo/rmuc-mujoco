@@ -63,3 +63,40 @@ def test_corner_requires_a_loaded_blocking_contact_and_return(tmp_path, monkeypa
         assert report["phases"][-1]["reached"]
     else:
         assert report["blocking_contacts"] == []  # A ground contact is not a wall hit.
+
+
+def test_an_obstructed_fence_corner_skips_the_local_probe(monkeypatch):
+    """A corner filled by a structure has no fence corner for a local probe."""
+
+    from rmuc_mujoco import wall_check
+
+    corners = [
+        {"id": "left_bottom", "xy_m": [0.0, 0.0], "panel_join_status": "PASS_STATIC"},
+        {"id": "right_top", "xy_m": [2.0, 2.0], "panel_join_status": "PASS_STATIC"},
+    ]
+
+    def heights(grid, xy):
+        # Open floor near left_bottom; a 1.7 m block over everything near right_top.
+        return np.where(np.hypot(xy[..., 0] - 2.0, xy[..., 1] - 2.0) < 1.9, 1.7, 0.0)
+
+    monkeypatch.setattr(wall_check, "fence_corners", lambda fence: [dict(c) for c in corners])
+    monkeypatch.setattr(wall_check, "_height", heights)
+    catalog = wall_check._corner_catalog({"perimeter_fence": {}}, None, [], np.zeros(3))
+
+    by_id = {corner["id"]: corner for corner in catalog}
+    assert "start_xy_m" in by_id["left_bottom"]
+    assert by_id["right_top"]["corner_access"] == "SOURCE_OBSTRUCTED"
+    assert by_id["right_top"]["local_probe"] == "NOT_RUN"
+    assert "start_xy_m" not in by_id["right_top"]
+
+
+def test_only_a_derived_wall_standing_on_the_road_skips_its_end_cap():
+    from rmuc_mujoco.wall_check import free_end_stands_on_road
+    from test_derived_walls import BOX, Y1, _merged_part
+    from rmuc_mujoco.wall_active_contact import derive_wall
+
+    exact = trimesh.creation.box(extents=(0.2, 1.0, 1.0))
+    exact.apply_translation([0.2, 0.6, 0.5])
+    assert not free_end_stands_on_road(exact, 1.1, 1)
+    derived, _ = derive_wall(_merged_part(), BOX)
+    assert free_end_stands_on_road(derived, Y1, 1)
