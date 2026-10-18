@@ -220,6 +220,7 @@ def build_parser() -> argparse.ArgumentParser:
             "turn_basic",
             "stairs_basic",
             "high_point_basic",
+            "tunnel_basic",
             "slope_basic",
             "fly_ramp_north",
             "fly_ramp_south",
@@ -322,6 +323,7 @@ def build_parser() -> argparse.ArgumentParser:
             "slope_basic",
             "stairs_basic",
             "high_point_basic",
+            "tunnel_basic",
             "fly_ramp",
             "fly_ramp_north",
             "fly_ramp_south",
@@ -389,6 +391,7 @@ def build_parser() -> argparse.ArgumentParser:
             "turn_basic",
             "stairs_basic",
             "high_point_basic",
+            "tunnel_basic",
             "slope_basic",
             "fly_ramp_north",
             "fly_ramp_south",
@@ -1118,10 +1121,13 @@ def main(argv: list[str] | None = None) -> int:
         if args.duration < 0.0:
             raise ValueError("--duration must be non-negative")
         # The route scenarios all drive the slope session with their own catalog.
-        if args.scenario in ("slope_basic", "stairs_basic", "high_point_basic"):
+        if args.scenario in ("slope_basic", "stairs_basic", "high_point_basic", "tunnel_basic"):
             from .slope_runtime import view_slope
 
-            if args.scenario in ("stairs_basic", "high_point_basic") and args.route_catalog is None:
+            if (
+                args.scenario in ("stairs_basic", "high_point_basic", "tunnel_basic")
+                and args.route_catalog is None
+            ):
                 command = args.scenario.removesuffix("_basic").replace("_", "-")
                 raise ValueError(f"{args.scenario} requires --route-catalog from {command}-check")
             if args.steps < 0:

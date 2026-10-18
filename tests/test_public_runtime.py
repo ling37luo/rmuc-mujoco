@@ -25,6 +25,7 @@ def test_scenario_registry_has_shared_baseline_and_training_stages() -> None:
         "fly_ramp_north",
         "fly_ramp_south",
         "boundary_contact",
+        "tunnel_basic",
     ]
     assert get_scenario("fly_ramp_north").routes[0]["route_id"] == "fly_ramp_north_to_gap"
 

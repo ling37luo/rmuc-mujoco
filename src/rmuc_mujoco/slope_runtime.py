@@ -37,8 +37,16 @@ from .viewer import SafePassiveViewerSession
 
 # Viewer banner and telemetry prefix for each route-catalog scenario.  The
 # catalog names its own scenario, so adding one here is all a new feature needs.
-CATALOG_LABELS = {"stairs_basic": "STAIRS", "high_point_basic": "HIGH_POINT"}
-CATALOG_PREFIXES = {"stairs_basic": "stairs", "high_point_basic": "high_point"}
+CATALOG_LABELS = {
+    "stairs_basic": "STAIRS",
+    "high_point_basic": "HIGH_POINT",
+    "tunnel_basic": "TUNNEL",
+}
+CATALOG_PREFIXES = {
+    "stairs_basic": "stairs",
+    "high_point_basic": "high_point",
+    "tunnel_basic": "tunnel",
+}
 # Built-in rover for a scenario run without --robot.  A 200 mm high-point riser
 # is taller than the four-wheel rover's 160 mm wheels can mount, so the climbs
 # drive the big-wheel step rover; every other scenario keeps the original.
@@ -58,6 +66,10 @@ def load_route_catalog(asset: FieldAsset, path_or_dict) -> dict[str, Any]:
         from .high_point import load_high_point_catalog
 
         return load_high_point_catalog(asset, document)
+    if scenario_id == "tunnel_basic":
+        from .tunnel_routes import load_tunnel_catalog
+
+        return load_tunnel_catalog(asset, document)
     from .stairs import load_stair_catalog
 
     return load_stair_catalog(asset, document)
@@ -323,6 +335,8 @@ class SlopeSession:
             reason = "outside_field"
         elif abs(across) > self.route["width_m"] / 2:
             reason = "outside_route"
+        elif (violation := self._tunnel_pass_violation(along, float(position[2]))) is not None:
+            reason = violation
         if reason and self.failure is None:
             self.failure = {"reason": reason, "time_s": float(d.time)}
         self.progress.update(
@@ -355,6 +369,24 @@ class SlopeSession:
                 }
             )
         return self.finite and not self.warnings
+
+    def _tunnel_pass_violation(self, along, height):
+        """A through route passes under its roof, an over route above it.
+
+        Both share their ends, so only where the body crosses the roof span
+        tells a drive through from a drive over.
+        """
+        kind = self.route.get("tunnel_pass")
+        if (
+            kind is None
+            or abs(along - self.route["roof_station_m"]) > self.route["roof_half_length_m"]
+        ):
+            return None
+        if kind == "through" and height > self.route["roof_top_m"]:
+            return "passed_over_roof"
+        if kind == "over" and height < self.route["roof_underside_m"]:
+            return "passed_under_roof"
+        return None
 
     def report(self):
         return {

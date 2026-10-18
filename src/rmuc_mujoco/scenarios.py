@@ -14,7 +14,7 @@ import json
 from typing import Any, Mapping
 
 from .manifest import FieldAsset
-from .seasons import DEFAULT_SEASON_ID, Season, get_season
+from .seasons import DEFAULT_SEASON_ID, TUNNELS, Season, get_season
 from .slope_routes import ROUTE_SCREEN
 from .slope_progress import SLOPE_TRAVERSAL_RULE
 
@@ -155,12 +155,39 @@ BASE_SCENARIOS: Mapping[str, ScenarioSpec] = {
 }
 
 
+# Offered on every season whose field has tunnels.  Its routes come from the
+# tunnel-check report of a pack that carries the tunnel layer.
+TUNNEL_SCENARIO = ScenarioSpec(
+    "tunnel_basic",
+    "collision_only",
+    "tunnels: pass through under the roof or over it, end to end",
+    {
+        "selector": "source_bound_tunnel_catalog",
+        "visual": "omitted",
+        "catalog_id": "tunnel_basic",
+        "catalog_command": "tunnel-check",
+    },
+    {
+        "strategy": "catalog_patch_spawn",
+        "controller_owns_gear_and_action_mapping": True,
+        "goal": "end_to_end_through_or_over_traversal",
+        "passes": ["through", "over"],
+        "default_direction": "uphill",
+        "directions": ["uphill", "downhill", "roundtrip"],
+        "robot_traversal_separate_from_contact_validation": True,
+    },
+    (),
+    ("human_view", "mujoco", "isaac"),
+)
+
+
 def scenarios_for(season: Season) -> Mapping[str, ScenarioSpec]:
     """The scenario table offered on fields of ``season``."""
 
-    if season.scenario_table is None:
-        return BASE_SCENARIOS
-    return season.scenario_table()
+    table = BASE_SCENARIOS if season.scenario_table is None else season.scenario_table()
+    if season.has(TUNNELS):
+        table = {**table, TUNNEL_SCENARIO.scenario_id: TUNNEL_SCENARIO}
+    return table
 
 
 def get_scenario(scenario_id: str, season: Season | None = None) -> ScenarioSpec:

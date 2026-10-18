@@ -15,8 +15,11 @@ from rmuc_mujoco.manifest import sha256_file
 from rmuc_mujoco.pack import export_runtime_asset_pack
 from rmuc_mujoco.query import HeightFieldData, find_spawn_candidates, load_heightfield
 from rmuc_mujoco.seasons import RMUC2026, TunnelRoof
+from rmuc_mujoco.slope_batch import run_slope_episode
+from rmuc_mujoco.slope_runtime import SlopeSession
 from rmuc_mujoco.tunnel_check import run_tunnel_checks
 from rmuc_mujoco.tunnel_contact import RoofGeometry, export_tunnel_pack, roof_geometry
+from rmuc_mujoco.tunnel_routes import ROUTE_MARGIN_M, build_tunnel_catalog
 from test_pack_profiles import _heightfield_bootstrap_png, _synthetic_source_build
 
 UNDERSIDE_M = 0.25
@@ -40,14 +43,13 @@ def _geometry(tunnel_id: str) -> RoofGeometry:
     return RoofGeometry(roof, _span(*ROOFS[tunnel_id]), (UNDERSIDE_M, 0.0, 0.0), (TOP_M, 0.0, 0.0))
 
 
-@pytest.fixture
-def roofed_pack(tmp_path: Path) -> Path:
-    """A flat 3 m field at 1 cm whose four roofs are still solid blocks."""
+def _roofed_pack(tmp_path: Path, half_size_m: float) -> Path:
+    """A flat square field at 1 cm whose four roofs are still solid blocks."""
 
     source = _synthetic_source_build(tmp_path / "source")
     manifest_path = source / "manifest.json"
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
-    axis = np.round(np.arange(-1.5, 1.5 + 1e-9, 0.01), 6)
+    axis = np.round(np.arange(-half_size_m, half_size_m + 1e-9, 0.01), 6)
     height = np.zeros((len(axis), len(axis)))
     gx, gy = np.meshgrid(axis, axis)
     for tunnel_id in ROOFS:
@@ -59,20 +61,31 @@ def roofed_pack(tmp_path: Path) -> Path:
     collision.update(
         rows_y=len(axis),
         columns_x=len(axis),
-        half_size_xy_m=[1.5, 1.5],
+        half_size_xy_m=[half_size_m, half_size_m],
         resolution_m=0.01,
         samples_sha256=sha256_file(source / collision["samples_file"]),
         image_sha256=sha256_file(source / collision["image_file"]),
     )
+    size = 2 * half_size_m
     manifest["dimensions"] = {
-        "official_core_battlefield_m": [3.0, 3.0],
-        "cad_assembly_outer_bounds_after_translation_m": [[-1.5, -1.5, 0.0], [1.5, 1.5, 1.0]],
-        "cad_assembly_outer_extents_m": [3.0, 3.0, 1.0],
+        "official_core_battlefield_m": [size, size],
+        "cad_assembly_outer_bounds_after_translation_m": [
+            [-half_size_m, -half_size_m, 0.0],
+            [half_size_m, half_size_m, 1.0],
+        ],
+        "cad_assembly_outer_extents_m": [size, size, 1.0],
     }
     manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
     pack = tmp_path / "pack"
     export_runtime_asset_pack(source, pack)
     return pack
+
+
+@pytest.fixture
+def roofed_pack(tmp_path: Path) -> Path:
+    """A flat 3 m field at 1 cm whose four roofs are still solid blocks."""
+
+    return _roofed_pack(tmp_path, 1.5)
 
 
 @pytest.fixture
@@ -129,6 +142,17 @@ def stub_replacement(monkeypatch):
 def tunnel_pack(roofed_pack: Path, stub_replacement, tmp_path: Path) -> Path:
     output = tmp_path / "tunnel_pack"
     export_tunnel_pack(tmp_path / "unused_source", roofed_pack, output)
+    return output
+
+
+@pytest.fixture
+def wide_tunnel_pack(tmp_path: Path, stub_replacement) -> Path:
+    """The same four roofs on a 6 m field, which leaves room for their routes."""
+
+    wide = tmp_path / "wide"
+    wide.mkdir()
+    output = tmp_path / "wide_tunnel_pack"
+    export_tunnel_pack(tmp_path / "unused_source", _roofed_pack(wide, 3.0), output)
     return output
 
 
@@ -327,3 +351,81 @@ def test_slope_patches_under_a_roof_are_not_ordinary_slopes() -> None:
     )
     centres = {tuple(np.round(p.center_xyz_m[:2], 3)) for p in open_sky}
     assert not centres & {tuple(np.round(p.center_xyz_m[:2], 3)) for p in covered}
+
+
+def test_each_roof_publishes_a_through_and_an_over_route(wide_tunnel_pack: Path) -> None:
+    catalog = build_tunnel_catalog(wide_tunnel_pack)
+
+    assert catalog["status"] == "PASS_STATIC" and not catalog["rejected"]
+    routes = {patch["patch_id"]: patch["route"] for patch in catalog["patches"]}
+    assert set(routes) == {
+        f"tunnel_{tunnel_id}_{kind}" for tunnel_id in ROOFS for kind in ("through", "over")
+    }
+    # b_red runs along x at (-0.8, 0.8); each end clears the 0.35 m roof by the margin.
+    through = routes["tunnel_b_red_through"]
+    reach = 0.175 + ROUTE_MARGIN_M
+    assert through["low_xyz_m"][:2] == pytest.approx([-0.8 - reach, 0.8])
+    assert through["high_xyz_m"][:2] == pytest.approx([-0.8 + reach, 0.8])
+    assert through["roof_station_m"] == pytest.approx(reach)
+    assert (through["roof_underside_m"], through["roof_top_m"]) == (UNDERSIDE_M, TOP_M)
+    assert through["width_m"] == pytest.approx(0.8)
+    # The over route shares the line and ends and passes above the roof top.
+    over = routes["tunnel_b_red_over"]
+    assert over["low_xyz_m"] == through["low_xyz_m"] and over["tunnel_pass"] == "over"
+    assert max(point[2] for point in over["waypoints_xyz_m"]) == pytest.approx(TOP_M)
+
+
+def test_a_route_that_leaves_the_field_is_rejected(tunnel_pack: Path) -> None:
+    """On the 3 m field every route end would lie off the heightfield."""
+
+    catalog = build_tunnel_catalog(tunnel_pack)
+
+    assert catalog["status"] == "NO_TUNNEL_ROUTES" and not catalog["patches"]
+    assert {row["reason"] for row in catalog["rejected"]} == {"route_outside_heightfield"}
+
+
+def test_the_rover_drives_through_and_cannot_pass_for_over(wide_tunnel_pack: Path) -> None:
+    """Both routes share their ends; the roof crossing tells them apart."""
+
+    catalog = build_tunnel_catalog(wide_tunnel_pack)
+    session = SlopeSession(wide_tunnel_pack, mode="policy", route_catalog={"catalog": catalog})
+
+    def drive(patch: str) -> dict:
+        case = {
+            "case_id": patch,
+            "case_index": 0,
+            "patch": patch,
+            "direction": "uphill",
+            "speed_mps": 0.3,
+            "repeat": 0,
+            "seed": 0,
+            "timeout_s": 20.0,
+        }
+        return run_slope_episode(session, case)
+
+    through = drive("tunnel_b_red_through")
+    assert through["outcome"] == "PASS", through["failure_reason"]
+    over = drive("tunnel_b_red_over")
+    assert (over["outcome"], over["failure_reason"]) == ("FAIL", "passed_under_roof")
+
+
+def test_check_hands_the_tunnel_routes_to_the_example_robots(
+    tunnel_pack: Path, monkeypatch
+) -> None:
+    examples = []
+    monkeypatch.setattr(
+        regression,
+        "run_tunnel_checks",
+        lambda asset, profiles: {"status": "PASS", "catalog": {"patches": ["route"]}},
+    )
+    monkeypatch.setattr(
+        regression,
+        "check_example_episodes",
+        lambda *args: examples.append(args) or {"status": "PASS"},
+    )
+    for name in ("check_public_interfaces", "check_surface_routes", "run_stair_checks"):
+        monkeypatch.setattr(regression, name, lambda *a, **k: {"status": "PASS"})
+
+    regression.run_regression(tunnel_pack, "source.json", output=tunnel_pack.parent / "r.json")
+
+    assert examples and examples[0][5] == {"patches": ["route"]}

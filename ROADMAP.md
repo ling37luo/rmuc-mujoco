@@ -26,7 +26,7 @@ performance matrix, visible frame measurements and PhysX region probes through
 | 4 | Wall contact and collision ownership | High | Complete for source-bound side/end and junction routes |
 | 5 | Portable full-field interaction regression | After 2–4 | Complete; sectioned `check` suite with public robots and generated routes |
 | 6 | Parallel performance and profile selection | After baseline regression | Complete for MuJoCo 1/4/16 environments, visible profile comparison and PhysX region contact through 64 |
-| 7 | Multi-season fields (RMUC 2027) | Next | Complete for RMUC 2027 STEP V1.0.0: every `check` section available and passing on the full 2027 pack; a tunnel training scenario open |
+| 7 | Multi-season fields (RMUC 2027) | Next | Complete for RMUC 2027 STEP V1.0.0: every `check` section available and passing on the full 2027 pack, tunnel through/over routes published |
 
 ### 1. Public documentation
 
@@ -124,8 +124,8 @@ larger parts, so each is derived as the convex hull of its part's vertices in a
 recorded box. A 2027 pack with the fence, lite profile, wall and tunnel layers
 passes `check` with every section available.
 
-Remaining: a tunnel training scenario (through and over). The experimental
-edge-void build option still covers only the 2026 GLB.
+`tunnel_basic` publishes a through and an over route per roof for both seasons.
+The experimental edge-void build option still covers only the 2026 GLB.
 
 ## Scope
 

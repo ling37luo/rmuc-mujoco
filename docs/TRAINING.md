@@ -166,7 +166,28 @@ the channel in both directions; it must clear the roof without touching it. A
 block 30 mm taller must be stopped by the roof, and a ball must rest on its top.
 The report lists the simulated clearance per roof. The builder raises ground below
 the main floor to it, so a tunnel over tilted ground can show slightly less than
-the official 250 mm. Robot gaits through tunnels are not evaluated.
+the official 250 mm. The probes do not evaluate robot gaits.
+
+Rulebook 4.4.2 lets a robot pass through a tunnel or over it, and table 5-27
+tells the two apart by whether it was detected inside on the way from one end
+to the other. The same report therefore publishes two routes per roof for
+`tunnel_basic`, along the roof's travel axis and ending 0.6 m past the roof on
+each side: `*_through` must pass under the roof and `*_over` above it. The routes
+share their ends, so the session fails a run whose body crosses the roof span on
+the wrong side (`passed_over_roof`, `passed_under_roof`):
+
+```bash
+rmuc-field run ./runs/field-tunnels --scenario tunnel_basic   --route-catalog ./runs/tunnels.json --directions uphill downhill --speeds 0.3 0.5
+rmuc-field view ./runs/field-tunnels --scenario tunnel_basic   --route-catalog ./runs/tunnels.json --patch tunnel_c_red_through
+```
+
+The included four-wheel rover is lower than the roofs, and it drives every
+through route in both directions on both seasons; `check` runs those in its
+example-robot section. Crossing over takes clearing a 0.27–0.44 m bar with an open
+underside, which none of the included robots can do, so their over runs fail as
+`passed_under_roof`. The rover's round trips through the B tunnels can stall: the
+far end sits on the foot of the road ramp, and the rover turns back only within
+5 cm of the end, which its small wheel torque cannot climb to.
 
 ## Isolated stairs and ledges
 

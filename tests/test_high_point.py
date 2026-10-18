@@ -371,7 +371,7 @@ def test_the_route_loader_picks_the_feature_from_the_catalog(
     """One session drives whichever catalog it is handed."""
 
     asset = FieldAsset.open(stepped_pack, verify=True)
-    assert set(CATALOG_LABELS) == {"stairs_basic", "high_point_basic"}
+    assert set(CATALOG_LABELS) == {"stairs_basic", "high_point_basic", "tunnel_basic"}
     assert load_route_catalog(asset, {"catalog": _catalog(asset)})["scenario_id"] == (
         "high_point_basic"
     )
@@ -429,7 +429,7 @@ def test_the_regression_runs_the_high_points_stage_on_a_2027_field(
     assert report["sections"]["high_points"]["status"] == "PASS"
     assert calls and calls[0]["profiles"] and calls[0]["source_manifest"] == "source.json"
     # The published climbs reach the example robots, which run after the stage.
-    assert examples and examples[0][-1] == {"patches": ["climb"]}
+    assert examples and examples[0][4] == {"patches": ["climb"]}
 
 
 def test_the_regression_reports_no_high_points_stage_on_a_2026_field(
@@ -442,4 +442,4 @@ def test_the_regression_reports_no_high_points_stage_on_a_2026_field(
     assert section["reason"] == "season has no high points"
     assert not calls
     assert "high_points" in report["unavailable_sections"]
-    assert examples and examples[0][-1] is None
+    assert examples and examples[0][4] is None

@@ -10,6 +10,8 @@ For every roof, in every selected profile:
 * a 50 mm ball dropped on the roof centre must come to rest on the roof top.
 
 Probes are rigid test bodies, not robots; they check the collision layer only.
+The report also publishes each roof's through and over routes for
+``tunnel_basic``.
 """
 
 from __future__ import annotations
@@ -27,6 +29,7 @@ from .acceptance import _contact_sample, _warning_counts
 from .manifest import FieldAsset
 from .mjcf import HFIELD_NAME, inject_exact_heightfield
 from .query import load_heightfield, sample_mujoco_heightfield
+from .tunnel_routes import build_tunnel_catalog
 
 PROBE_MARGIN_M = 0.03
 PROBE_LENGTH_M = 0.20
@@ -319,6 +322,7 @@ def run_tunnel_checks(
             "Rigid probes check the tunnel collision layer: passage below the roof, "
             "blocking above it and support on it. Robots and gaits are not evaluated."
         ),
+        "catalog": build_tunnel_catalog(asset),
     }
 
 

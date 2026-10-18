@@ -153,6 +153,7 @@ def test_scenarios_cli_lists_public_registry(capsys) -> None:
         "fly_ramp_north",
         "fly_ramp_south",
         "boundary_contact",
+        "tunnel_basic",
     ]
 
 

@@ -57,6 +57,10 @@ does not remove the full field's `DRAFT_BLOCKED` status.
   recorded box, refused if a part triangle there leaves the hull or the hull
   adds side area the record does not account for. The RMUC 2026 wall pack is
   unchanged byte for byte.
+- Added the `tunnel_basic` scenario for seasons with tunnels. `tunnel-check`
+  publishes a through and an over route along each roof's travel axis; the
+  session fails a run whose body crosses the roof span on the wrong side, and
+  `check` drives the through routes with the four-wheel rover.
 
 ## [1.3.0] - 2026-10-09
 

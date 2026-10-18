@@ -138,6 +138,7 @@ inherits global solver options from the parent robot; check the resulting
 | `fly_ramp_north`, `fly_ramp_south` | RMUC 2026 only: jump episodes and same-source local training regions |
 | `stairs_basic` | Source-checked isolated steps; paired wheel checks and robot traversal |
 | `high_point_basic` | RMUC 2027 only: measured high-point levels and risers, published as climb routes |
+| `tunnel_basic` | Tunnel packs: a through and an over route per roof, told apart where the body crosses the roof |
 | `boundary_contact` | Source-screened perimeter contact and whole-rover corner approach/retreat checks |
 
 The [training guide](docs/TRAINING.md) covers commands, controller interfaces
