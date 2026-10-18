@@ -4,13 +4,13 @@ User-visible changes by release. Generated field packs and official assets are
 built locally and are not included in releases. Passing individual scenarios
 does not remove the full field's `DRAFT_BLOCKED` status.
 
-## [Unreleased]
+## [2.0.0] - 2026-10-18
 
 - Renamed the package to `rmuc-mujoco` (`rmuc_mujoco`, `rmuc-field`) for
   multi-season use. `rmuc2026_mujoco`, `rmuc2026-field` and `rmuc2026-mujoco`
   remain as aliases; pack formats and data identifiers are unchanged.
 - Added a season registry (`rmuc_mujoco.seasons`) and `--season` for `source`,
-  `download`, `build` and `setup`. RMUC 2026 is the only registered season.
+  `download`, `build` and `setup`. A pack's season follows from its STEP identity.
 - New packs record `season` and `official_step_version`; 1.x packs are
   identified by their STEP hash. Field files exported from the same source
   build are unchanged.
