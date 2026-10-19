@@ -4,7 +4,7 @@ User-visible changes by release. Generated field packs and official assets are
 built locally and are not included in releases. Passing individual scenarios
 does not remove the full field's `DRAFT_BLOCKED` status.
 
-## [Unreleased]
+## [2.1.0] - 2026-10-19
 
 - RMUC 2027 packs can carry the rulebook livery: `--include-surface-guide` now
   works with `--season rmuc2027`. The guide is rulebook V1.0.0 figure 4-1 (PDF
