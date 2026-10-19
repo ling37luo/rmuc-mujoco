@@ -179,6 +179,7 @@ def _rewrite_bound_file(pack: Path, relative: str, text: str) -> None:
 
 
 def test_a_lite_profile_can_follow_pro(tmp_path: Path) -> None:
+    pytest.importorskip("fast_simplification")
     # Octahedra in full leave lite room to reduce; pro has two per group.
     source = _synthetic_source_build(tmp_path / "source")
     _rewrite_meshes(source, OCTAHEDRON)
