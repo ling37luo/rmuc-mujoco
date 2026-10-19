@@ -277,6 +277,8 @@ def _extract_rulebook_surface_guide(
                     None if guide.crop_ltrb_px is None else float(extents[0] / extents[1])
                 ),
             )
+            if guide.rotate_180:
+                cropped = cropped.transpose(Image.Transpose.ROTATE_180)
         visual_dir = output / "visual"
         visual_dir.mkdir(parents=True, exist_ok=True)
         destination = visual_dir / "official_rulebook_v2_overhead_surface.png"
@@ -291,8 +293,12 @@ def _extract_rulebook_surface_guide(
         "source_image_size_px": list(source_size),
         "source_image_crop_ltrb_px": list(crop),
         "world_mapping": {
-            "image_left_to_world": "negative_x_red_side",
-            "image_right_to_world": "positive_x_blue_side",
+            "image_left_to_world": (
+                "negative_x_blue_side" if guide.rotate_180 else "negative_x_red_side"
+            ),
+            "image_right_to_world": (
+                "positive_x_red_side" if guide.rotate_180 else "positive_x_blue_side"
+            ),
             "image_top_to_world": "positive_y",
             "rectangle": "official_cad_assembly_outer_xy_bounds",
             "world_bounds_xy_m": bounds.tolist(),
@@ -309,6 +315,8 @@ def _extract_rulebook_surface_guide(
     }
     if guide.crop_ltrb_px is not None:
         record["source_image_crop_rule"] = "pinned_fit_of_render_edges_to_source_heightfield"
+    if guide.rotate_180:
+        record["source_image_rotation_deg"] = 180
     return record
 
 

@@ -47,7 +47,7 @@ def test_a_pinned_crop_must_match_the_given_aspect_and_stay_in_the_image() -> No
         _crop_overhead_render(image, pinned_crop=(62, 26, 990, 524), expected_aspect=1.75)
 
 
-def test_the_2027_guide_is_cut_from_its_page_and_pinned_crop(
+def test_the_2027_guide_is_cut_from_its_page_and_turned_half_a_turn(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     commands = []
@@ -55,7 +55,9 @@ def test_the_2027_guide_is_cut_from_its_page_and_pinned_crop(
     def fake_pdfimages(command, **_kwargs):
         commands.append(command)
         prefix = command[-1]
-        _render((981, 559), (48, 25, 951, 524)).save(f"{prefix}-004.png")
+        render = _render((981, 559), (48, 25, 951, 524))
+        render.putpixel((63, 25), (255, 0, 0))  # the crop's top-left pixel
+        render.save(f"{prefix}-004.png")
         Image.new("RGB", (122, 14)).save(f"{prefix}-000.png")
         return subprocess.CompletedProcess(command, 0, "", "")
 
@@ -73,10 +75,18 @@ def test_the_2027_guide_is_cut_from_its_page_and_pinned_crop(
     assert commands[0][1:5] == ["-f", "30", "-l", "30"]
     assert record["source_pdf_page"] == 30
     assert record["source_image_size_px"] == [981, 559]
-    assert record["source_image_crop_ltrb_px"] == [62, 26, 936, 524]
+    assert record["source_image_crop_ltrb_px"] == [63, 25, 936, 524]
     assert record["source_image_crop_rule"] == "pinned_fit_of_render_edges_to_source_heightfield"
-    assert (record["width_px"], record["height_px"]) == (874, 498)
-    assert record["world_mapping"]["world_bounds_xy_m"] == bounds
+    assert (record["width_px"], record["height_px"]) == (873, 499)
+    mapping = record["world_mapping"]
+    assert mapping["world_bounds_xy_m"] == bounds
+    # The drawing's red side is +x, so the figure's red left side turns there.
+    assert record["source_image_rotation_deg"] == 180
+    assert (mapping["image_left_to_world"], mapping["image_right_to_world"]) == (
+        "negative_x_blue_side",
+        "positive_x_red_side",
+    )
     assert "official V1.0.0 rulebook" in record["claim_boundary"]
     with Image.open(tmp_path / record["file"]) as written:
-        assert written.size == (874, 498)
+        assert written.size == (873, 499)
+        assert written.getpixel((872, 498)) == (255, 0, 0)

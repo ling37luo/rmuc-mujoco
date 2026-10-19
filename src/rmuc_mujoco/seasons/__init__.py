@@ -141,6 +141,9 @@ class FieldSource:
     # for them.  A release without walls offers no source-wall layer.
     source_walls: tuple[SourceWall, ...] = ()
     wall_layer_kind: str | None = None
+    # (material id, source RGBA displayed in its place).  The drawing's own
+    # colour stays in each visual mesh's rgba.
+    display_stand_in_rgba: tuple[tuple[str, tuple[float, float, float, float]], ...] = ()
 
 
 @dataclass(frozen=True)
@@ -155,6 +158,9 @@ class SurfaceGuideSource:
     # rectangle.  None crops the white page margin, which suits a render whose
     # frame is that rectangle.
     crop_ltrb_px: tuple[int, int, int, int] | None = None
+    # The rulebook figures put the red side on the left.  True where the
+    # drawing's red side is +x: the guide is the figure turned half a turn.
+    rotate_180: bool = False
 
 
 @dataclass(frozen=True)

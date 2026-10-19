@@ -53,8 +53,14 @@ def test_rmuc2027_is_registered_without_2026_features() -> None:
     guide = RMUC2027.surface_guide
     assert guide.file == RMUC2027.last_reviewed_rulebook.file
     assert (guide.version, guide.overhead_pdf_page) == ("V1.0.0", 30)
-    assert guide.crop_ltrb_px == (62, 26, 936, 524)
+    assert guide.crop_ltrb_px == (63, 25, 936, 524) and guide.rotate_180
     assert RMUC2026.surface_guide.crop_ltrb_px is None
+    assert not RMUC2026.surface_guide.rotate_180
+    # Only 2027 swaps display colours: its near-black floor shows as 2026's.
+    floor = dict(source.display_stand_in_rgba)
+    assert set(floor) == {"cad_base_surface_080808ff", "cad_0d0d0dff"}
+    assert all(rgba == (1.0, 1.0, 226 / 255, 1.0) for rgba in floor.values())
+    assert RMUC2026.default_source.display_stand_in_rgba == ()
     # The 2027 table keeps every core scenario and adds the high point and tunnels.
     table = scenarios_for(RMUC2027)
     assert set(table) == set(BASE_SCENARIOS) | {"high_point_basic", "tunnel_basic"}

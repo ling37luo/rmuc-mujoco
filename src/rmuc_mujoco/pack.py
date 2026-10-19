@@ -46,6 +46,10 @@ SURFACE_GUIDE_MESH_FILE = "visual/rmuc2026_surface_guide.obj"
 SURFACE_GUIDE_GEOM_NAME = "rmuc2026_surface_guide"
 SURFACE_GUIDE_GEOM_GROUP = 4
 SURFACE_GUIDE_BAKED_CONTENT = SOURCE_BAKED_SCENE_CONTENT
+SURFACE_GUIDE_SIDE_MAPPINGS = (
+    ("negative_x_red_side", "positive_x_blue_side"),
+    ("negative_x_blue_side", "positive_x_red_side"),
+)
 SURFACE_GUIDE_SAMPLING_M = 0.05
 SURFACE_GUIDE_CLEARANCE_M = 0.005
 SURFACE_GUIDE_MINIMUM_ABOVE_TERRAIN_M = 0.002
@@ -106,18 +110,38 @@ def _source_count(source: dict[str, Any], key: str, *, label: str) -> int | None
     return value
 
 
-def _display_rgba(source_rgba: list[float], *, visual_role: str) -> list[float]:
-    """Map source colours to a legible display palette without changing provenance."""
+def _display_rgba(
+    source_rgba: list[float],
+    *,
+    visual_role: str,
+    stand_in: list[float] | None = None,
+) -> list[float]:
+    """Map source colours to a legible display palette without changing provenance.
 
+    A stand-in colour is displayed in place of the source colour; alpha stays
+    the source's.
+    """
+
+    colour = source_rgba if stand_in is None else stand_in
     rgb = [
         PUBLIC_DISPLAY_RGB_BLACK_FLOOR
         + (PUBLIC_DISPLAY_RGB_WHITE_CEILING - PUBLIC_DISPLAY_RGB_BLACK_FLOOR)
         * value**PUBLIC_DISPLAY_RGB_GAMMA
-        for value in source_rgba[:3]
+        for value in colour[:3]
     ]
     if visual_role == "base_surface_shell":
         rgb = [value * PUBLIC_DISPLAY_BASE_SURFACE_SCALE for value in rgb]
     return [*rgb, source_rgba[3]]
+
+
+def _display_stand_ins(manifest: dict[str, Any]) -> dict[str, list[float]]:
+    """Display stand-in colours that the source's STEP release records, by material id."""
+
+    source = _json_object(manifest.get("source"), "source")
+    field_source = source_for_step(source.get("sha256"), source.get("size_bytes"))
+    if field_source is None:
+        return {}
+    return {material: list(rgba) for material, rgba in field_source.display_stand_in_rgba}
 
 
 def _source_file(
@@ -186,13 +210,17 @@ def _source_surface_guide(
 
     mapping = _json_object(surface.get("world_mapping"), "surface_guide.world_mapping")
     expected_mapping = {
-        "image_left_to_world": "negative_x_red_side",
-        "image_right_to_world": "positive_x_blue_side",
         "image_top_to_world": "positive_y",
         "rectangle": "official_cad_assembly_outer_xy_bounds",
         "calibration": "diagnostic_outer_bounds_fit_not_survey_homography",
     }
-    if any(mapping.get(key) != value for key, value in expected_mapping.items()):
+    # The rulebook figures put the red side on the left; the guide of a field
+    # whose red side is +x is the figure turned half a turn.
+    sides = (mapping.get("image_left_to_world"), mapping.get("image_right_to_world"))
+    if (
+        any(mapping.get(key) != value for key, value in expected_mapping.items())
+        or sides not in SURFACE_GUIDE_SIDE_MAPPINGS
+    ):
         raise ExportBlocked("surface_guide.world_mapping方向或标定合同损坏")
     raw_bounds = mapping.get("world_bounds_xy_m")
     if (
@@ -898,6 +926,7 @@ def _build_field_xml(
     livery: dict[str, str] | None = None,
 ) -> bytes:
     visual = manifest["visual_meshes"]
+    stand_ins = _display_stand_ins(manifest)
     collision = _json_object(manifest.get("collision"), "collision")
     half_size = _finite_numbers(collision.get("half_size_xy_m"), count=2, label="碰撞半尺寸")
     center = _finite_numbers(
@@ -1003,7 +1032,11 @@ def _build_field_xml(
             if not all(0.0 <= value <= 1.0 for value in rgba):
                 raise ExportBlocked(f"visual_meshes[{index}].rgba越界")
             visual_role = str(record.get("visual_role", "cad_structure"))
-            display_rgba = _display_rgba(rgba, visual_role=visual_role)
+            display_rgba = _display_rgba(
+                rgba,
+                visual_role=visual_role,
+                stand_in=stand_ins.get(str(record.get("material_id"))),
+            )
             material = f"rmuc2026_material_{index}"
             mesh = f"rmuc2026_visual_mesh_{index}"
             ET.SubElement(
@@ -1148,6 +1181,12 @@ def export_runtime_asset_pack(
     include_surface_guide: bool = False,
 ) -> dict[str, Any]:
     field_root, source_manifest_path, source_manifest = _load_source_contract(field_build)
+    display_stand_ins = _display_stand_ins(source_manifest)
+    unmatched = set(display_stand_ins) - {
+        str(record.get("material_id")) for record in source_manifest["visual_meshes"]
+    }
+    if unmatched:
+        raise ExportBlocked(f"显示替代色没有对应的视觉材质：{sorted(unmatched)}")
     output = output_dir.expanduser().resolve()
     if output.exists():
         raise ExportBlocked(f"输出目录已存在，拒绝覆盖：{output}")
@@ -1176,16 +1215,21 @@ def export_runtime_asset_pack(
             destination.parent.mkdir(parents=True, exist_ok=True)
             shutil.copyfile(source, destination)
             visual_records.append(_file_record(staging, relative, "cad_visual_mesh"))
-            compact_visual_meshes.append(
-                {
-                    "file": relative,
-                    "sha256": str(record["sha256"]),
-                    "material_id": str(record.get("material_id", f"mesh_{index}")),
-                    "rgba": source_rgba,
-                    "display_rgba": _display_rgba(source_rgba, visual_role=visual_role),
-                    "visual_role": visual_role,
-                }
-            )
+            material_id = str(record.get("material_id", f"mesh_{index}"))
+            stand_in = display_stand_ins.get(material_id)
+            compact_record = {
+                "file": relative,
+                "sha256": str(record["sha256"]),
+                "material_id": material_id,
+                "rgba": source_rgba,
+                "display_rgba": _display_rgba(
+                    source_rgba, visual_role=visual_role, stand_in=stand_in
+                ),
+                "visual_role": visual_role,
+            }
+            if stand_in is not None:
+                compact_record["display_stand_in_rgba"] = stand_in
+            compact_visual_meshes.append(compact_record)
 
         collision = _json_object(source_manifest.get("collision"), "collision")
         minimum_height = float(collision.get("minimum_height_m", 0.0))
@@ -1419,6 +1463,7 @@ def export_runtime_asset_pack(
                     "toggle_key": "L",
                     "physics_changed": False,
                 },
+                **({"display_stand_in_rgba": display_stand_ins} if display_stand_ins else {}),
             },
             "visual_layers": ({"livery": livery_manifest} if livery_manifest else {}),
             "collision": compact_collision,

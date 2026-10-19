@@ -23,6 +23,10 @@ from .. import (
 )
 
 
+# ffffe2, the colour of the RMUC 2026 floor.
+RMUC2026_FLOOR_RGBA = (1.0, 1.0, 226 / 255, 1.0)
+
+
 def _scenario_table():
     from .scenarios import SCENARIOS
 
@@ -105,6 +109,13 @@ STEP_V1_0_0 = FieldSource(
         SourceWall(121, "low", 7942, 13, 22, 0.6287067816, (10.30, 10.50, 5.17, 9.15), 3, 0.01125),
     ),
     wall_layer_kind="official_source_derived_convex_walls_v1",
+    # The drawing paints the floor and the raised field surfaces near black.
+    # They are displayed in the RMUC 2026 floor colour, so the default view
+    # reads like 2026.
+    display_stand_in_rgba=(
+        ("cad_base_surface_080808ff", RMUC2026_FLOOR_RGBA),
+        ("cad_0d0d0dff", RMUC2026_FLOOR_RGBA),
+    ),
 )
 
 RULEBOOK_V1_0_0 = OfficialFile(
@@ -134,15 +145,18 @@ SEASON = Season(
             ("static_field_chapter_vs_rmuc2026_v2_2_0", "CHANGED_FLY_RAMPS_TO_TUNNELS"),
         ),
     ),
-    # Figure 4-1's dark frame reaches about 0.48 m past each end of the
-    # drawing.  The crop is where a fit of the figure's edges against the
-    # V1.0.0 source heightfield places the drawing's outer rectangle.
+    # Figure 4-1 shows the red side on the left, but the drawing's red parts
+    # are at +x, so the guide is the figure turned half a turn.  Its dark frame
+    # reaches about 0.48 m past each end of the drawing; the crop is where a
+    # fit of the turned figure's edges against the V1.0.0 source heightfield
+    # places the drawing's outer rectangle.
     surface_guide=SurfaceGuideSource(
         version="V1.0.0",
         publication_date="2026-10-15",
         file=RULEBOOK_V1_0_0,
         overhead_pdf_page=30,
-        crop_ltrb_px=(62, 26, 936, 524),
+        crop_ltrb_px=(63, 25, 936, 524),
+        rotate_180=True,
     ),
     core_battlefield_size_m=(28.0, 15.0),
     features=frozenset({TUNNELS, HIGH_POINTS}),

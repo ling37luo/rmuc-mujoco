@@ -77,6 +77,8 @@ rmuc-field view ./local-rmuc2026-field \
   shadows, so it is a guide rather than a clean material texture. Each season
   takes its rulebook's overhead render; the RMUC 2027 figure is coarser, about
   3 cm per pixel.
+- The RMUC 2027 drawing paints the floor near black; packs display it in the
+  RMUC 2026 floor colour. The drawing's colours stay in the pack manifest.
 
 To drive the included example rover on an available ordinary-slope route:
 

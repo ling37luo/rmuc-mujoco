@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import Callable
+import dataclasses
 import hashlib
 import json
 from pathlib import Path
@@ -24,6 +25,7 @@ from rmuc_mujoco import (
 )
 from rmuc_mujoco.collision_candidate import SOURCE_GLB_SHA256
 from rmuc_mujoco.download import OFFICIAL_STEP_SHA256, OFFICIAL_STEP_SIZE
+import rmuc_mujoco.pack as pack_module
 from rmuc_mujoco.pack import (
     PUBLIC_DISPLAY_BASE_SURFACE_SCALE,
     PUBLIC_DISPLAY_PROFILE,
@@ -733,6 +735,12 @@ def test_export_can_include_fail_closed_non_contact_livery(tmp_path: Path) -> No
             ),
             "world_mapping",
         ),
+        (
+            lambda surface: surface["world_mapping"].__setitem__(
+                "image_right_to_world", "positive_x_red_side"
+            ),
+            "world_mapping",
+        ),
         (lambda surface: surface.__setitem__("sha256", "0" * 64), "SHA-256"),
     ],
 )
@@ -1172,4 +1180,62 @@ def test_export_rejects_a_negative_sample_provenance_counter(tmp_path: Path) -> 
     manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
 
     with pytest.raises(ExportBlocked, match="非负整数"):
+        export_runtime_asset_pack(source, tmp_path / "pack")
+
+
+def test_a_guide_turned_half_a_turn_exports_with_blue_on_the_left(tmp_path: Path) -> None:
+    source = _synthetic_source_build(tmp_path / "source", include_surface_guide=True)
+    manifest_path = source / "manifest.json"
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    manifest["surface_guide"]["world_mapping"].update(
+        image_left_to_world="negative_x_blue_side", image_right_to_world="positive_x_red_side"
+    )
+    manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+
+    export_runtime_asset_pack(source, tmp_path / "pack", include_surface_guide=True)
+
+    assert FieldAsset.open(tmp_path / "pack", verify=True).manifest["visual_layers"]["livery"]
+
+
+def _with_stand_ins(monkeypatch, stand_ins) -> None:
+    release = dataclasses.replace(RMUC2026.default_source, display_stand_in_rgba=stand_ins)
+    monkeypatch.setattr(pack_module, "source_for_step", lambda *args: release)
+
+
+def test_a_display_stand_in_changes_only_the_displayed_colour(tmp_path: Path, monkeypatch) -> None:
+    cream = (1.0, 1.0, 226 / 255, 1.0)
+    _with_stand_ins(monkeypatch, (("synthetic_0", cream), ("synthetic_1", cream)))
+    source = _synthetic_source_build(tmp_path / "source")
+    output = tmp_path / "pack"
+
+    export_runtime_asset_pack(source, output)
+
+    manifest = json.loads((output / "manifest.json").read_text(encoding="utf-8"))
+    meshes = manifest["visual_meshes"]
+    # The source colour is kept; the floor shell and a structure show as 2026's.
+    assert all(mesh["rgba"] == [0.2, 0.4, 0.6, 1.0] for mesh in meshes)
+    assert meshes[0]["display_rgba"] == _display_rgba(list(cream), visual_role="base_surface_shell")
+    assert meshes[1]["display_rgba"] == _display_rgba(list(cream), visual_role="cad_structure")
+    assert meshes[1]["display_stand_in_rgba"] == list(cream)
+    assert "display_stand_in_rgba" not in meshes[2]
+    assert meshes[2]["display_rgba"] == _display_rgba(
+        meshes[2]["rgba"], visual_role="cad_structure"
+    )
+    assert set(manifest["visual_display"]["display_stand_in_rgba"]) == {
+        "synthetic_0",
+        "synthetic_1",
+    }
+    full = ET.parse(output / "rmuc2026_field.xml").getroot()
+    material = full.find("./asset/material[@name='rmuc2026_material_1']")
+    assert [float(value) for value in material.get("rgba").split()] == pytest.approx(
+        meshes[1]["display_rgba"]
+    )
+    FieldAsset.open(output, verify=True)
+
+
+def test_a_stand_in_for_a_missing_material_blocks_export(tmp_path: Path, monkeypatch) -> None:
+    _with_stand_ins(monkeypatch, (("not_in_this_build", (1.0, 1.0, 1.0, 1.0)),))
+    source = _synthetic_source_build(tmp_path / "source")
+
+    with pytest.raises(ExportBlocked, match="not_in_this_build"):
         export_runtime_asset_pack(source, tmp_path / "pack")
