@@ -49,23 +49,26 @@ STEP_V1_0_0 = FieldSource(
     # Measured from the first local V1.0.0 build (2026-10-16).
     visual_mesh_count=41,
     source_glb_sha256="5117497d92424e8bfdfc5154354de5861af06c23a6bc5b977977122405e33e92",
-    # Tunnels a and b keep their 2026 places; c replaces the fly ramp.
+    # Tunnels a and b keep their 2026 places; c replaces the fly ramp.  Red
+    # and blue follow the drawing's team colours: its red parts are at +x,
+    # although the rulebook figures show the red side on the left.
     tunnel_roofs=(
-        TunnelRoof("a_red", 229, (-5.4, -4.0, -4.1, -3.1), (0.80, 0.35)),
-        TunnelRoof("a_blue", 226, (4.0, 5.4, 6.34, 7.34), (0.80, 0.35)),
-        TunnelRoof("b_red", 116, (0.5, 1.4, -5.0, -3.6), (0.35, 0.80)),
-        TunnelRoof("b_blue", 123, (-1.4, -0.5, 6.84, 8.24), (0.35, 0.80)),
-        TunnelRoof("c_red", 178, (-0.5, 0.5, -6.0, -4.6), (0.35, 0.80)),
-        TunnelRoof("c_blue", 150, (-0.5, 0.5, 7.84, 9.24), (0.35, 0.80)),
+        TunnelRoof("a_red", 226, (4.0, 5.4, 6.34, 7.34), (0.80, 0.35)),
+        TunnelRoof("a_blue", 229, (-5.4, -4.0, -4.1, -3.1), (0.80, 0.35)),
+        TunnelRoof("b_red", 123, (-1.4, -0.5, 6.84, 8.24), (0.35, 0.80)),
+        TunnelRoof("b_blue", 116, (0.5, 1.4, -5.0, -3.6), (0.35, 0.80)),
+        TunnelRoof("c_red", 150, (-0.5, 0.5, 7.84, 9.24), (0.35, 0.80)),
+        TunnelRoof("c_blue", 178, (-0.5, 0.5, -6.0, -4.6), (0.35, 0.80)),
     ),
     # The 2027 high points (rulebook 4.2.4, figure 4-17): an 800 mm platform
     # whose highland flight is three 200 mm steps (section A-A) and whose floor
     # flight is four (section B-B).  Both sit in a base area and are 180 degree
     # images of each other about the battlefield centre, so each flight
-    # direction points the opposite way.
+    # direction points the opposite way.  Named by the drawing's colours, as
+    # the tunnels: the red high point is at +x.
     high_points=(
         HighPoint(
-            high_point_id="red",
+            high_point_id="blue",
             search_box_xy_m=(-13.9, -10.4, 4.1, 7.6),
             platform_top_m=0.80,
             step_rise_m=0.20,
@@ -77,7 +80,7 @@ STEP_V1_0_0 = FieldSource(
             floor_flight_xy=(0.0, -1.0),
         ),
         HighPoint(
-            high_point_id="blue",
+            high_point_id="red",
             search_box_xy_m=(10.4, 13.9, -4.4, -0.6),
             platform_top_m=0.80,
             step_rise_m=0.20,

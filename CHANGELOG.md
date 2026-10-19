@@ -20,6 +20,10 @@ does not remove the full field's `DRAFT_BLOCKED` status.
 - `setup` and `build` now default to each release's full budget (RMUC 2026:
   450,000 faces; RMUC 2027: 800,000) instead of 2,300,000, so `full` is the
   moderate default. Pass `--target-visual-faces` for another budget.
+- RMUC 2027 tunnels and high points are named by the drawing's team colours,
+  whose red side is +x: `a_red` and `a_blue` (likewise `b`, `c` and the high
+  points `red` and `blue`) swap places. Rebuild the tunnel layer of an RMUC
+  2027 pack made with 2.0.0 (`tunnel-pack`) and regenerate its route catalogs.
 - RMUC 2027 packs display the drawing's near-black floor and raised field
   surfaces in the RMUC 2026 floor colour. Each visual mesh keeps its source
   colour in `rgba`; RMUC 2026 colours are unchanged.
