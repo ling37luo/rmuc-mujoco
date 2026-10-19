@@ -8,7 +8,7 @@ from pathlib import Path
 import pytest
 
 import rmuc_mujoco.download as download
-from rmuc_mujoco.seasons import RMUC2026, FieldSource
+from rmuc_mujoco.seasons import RMUC2026, RMUC2027, FieldSource
 
 
 def _fixture_bytes() -> bytes:
@@ -135,6 +135,23 @@ def test_rulebook_download_is_atomic_verified_and_reused(
     assert destination.read_bytes() == payload
     assert calls == 1
     assert not list(destination.parent.glob("*.part"))
+
+
+def test_rulebook_verification_follows_the_season_guide(tmp_path: Path) -> None:
+    payload = b"%PDF-1.7 synthetic 2027 rulebook"
+    pinned = RMUC2027.surface_guide
+    guide = dataclasses.replace(
+        pinned,
+        file=dataclasses.replace(
+            pinned.file, size_bytes=len(payload), sha256=hashlib.sha256(payload).hexdigest()
+        ),
+    )
+    path = tmp_path / "rulebook.pdf"
+    path.write_bytes(payload)
+
+    assert download.verify_official_rulebook_v2_0_0(path, guide).sha256 == guide.file.sha256
+    with pytest.raises(download.DownloadError, match="rulebook size mismatch"):
+        download.verify_official_rulebook_v2_0_0(path)
 
 
 def test_rulebook_download_requires_reference_acknowledgement(tmp_path: Path) -> None:

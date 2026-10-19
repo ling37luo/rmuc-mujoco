@@ -4,6 +4,14 @@ User-visible changes by release. Generated field packs and official assets are
 built locally and are not included in releases. Passing individual scenarios
 does not remove the full field's `DRAFT_BLOCKED` status.
 
+## [Unreleased]
+
+- RMUC 2027 packs can carry the rulebook livery: `--include-surface-guide` now
+  works with `--season rmuc2027`. The guide is rulebook V1.0.0 figure 4-1 (PDF
+  page 30), cut to the drawing's outer rectangle, about 3 cm per pixel. **G**
+  toggles it in `view` as on RMUC 2026; the defaults stay flat lighting with
+  the livery off. RMUC 2026 guides are unchanged.
+
 ## [2.0.0] - 2026-10-18
 
 - Renamed the package to `rmuc-mujoco` (`rmuc_mujoco`, `rmuc-field`) for

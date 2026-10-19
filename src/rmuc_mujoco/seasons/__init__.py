@@ -151,6 +151,10 @@ class SurfaceGuideSource:
     publication_date: str
     file: OfficialFile
     overhead_pdf_page: int
+    # Source-image pixels (left, top, right, bottom) on the drawing's outer
+    # rectangle.  None crops the white page margin, which suits a render whose
+    # frame is that rectangle.
+    crop_ltrb_px: tuple[int, int, int, int] | None = None
 
 
 @dataclass(frozen=True)

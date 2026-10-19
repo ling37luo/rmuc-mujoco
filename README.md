@@ -74,7 +74,9 @@ rmuc-field view ./local-rmuc2026-field \
 - These shortcuts require the `viewer` extra and a focused Linux/X11 viewer.
   Other platforms can use the startup flags above.
 - Livery is visual only. The source illustration contains baked objects and
-  shadows, so it is a guide rather than a clean material texture.
+  shadows, so it is a guide rather than a clean material texture. Each season
+  takes its rulebook's overhead render; the RMUC 2027 figure is coarser, about
+  3 cm per pixel.
 
 To drive the included example rover on an available ordinary-slope route:
 

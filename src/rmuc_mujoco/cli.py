@@ -102,7 +102,7 @@ def build_parser() -> argparse.ArgumentParser:
     build.add_argument(
         "--rulebook",
         type=Path,
-        help="local official V2.0.0 rulebook PDF; required with --include-surface-guide",
+        help="local official rulebook PDF of the season's guide; required with --include-surface-guide",
     )
     setup = commands.add_parser(
         "setup",
@@ -604,6 +604,7 @@ def main(argv: list[str] | None = None) -> int:
                     args.rulebook_cache or default_rulebook_cache(season),
                     acknowledge_reference_only=True,
                     progress=_terminal_progress,
+                    guide=season.surface_guide,
                 )
             result = build_runtime_asset_pack(
                 downloaded.path,

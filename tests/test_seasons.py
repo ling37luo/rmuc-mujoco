@@ -49,7 +49,12 @@ def test_rmuc2027_is_registered_without_2026_features() -> None:
     assert source.version == "1.0.0" and source.step_product == "00_RMUC20270001_ASM"
     assert source_for_step(source.step.sha256, source.step.size_bytes) is source
     assert not RMUC2027.has(FLY_RAMPS)
-    assert RMUC2027.surface_guide is None
+    # The livery is the reviewed rulebook's figure 4-1, cut to the drawing.
+    guide = RMUC2027.surface_guide
+    assert guide.file == RMUC2027.last_reviewed_rulebook.file
+    assert (guide.version, guide.overhead_pdf_page) == ("V1.0.0", 30)
+    assert guide.crop_ltrb_px == (62, 26, 936, 524)
+    assert RMUC2026.surface_guide.crop_ltrb_px is None
     # The 2027 table keeps every core scenario and adds the high point and tunnels.
     table = scenarios_for(RMUC2027)
     assert set(table) == set(BASE_SCENARIOS) | {"high_point_basic", "tunnel_basic"}

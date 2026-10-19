@@ -15,7 +15,7 @@ import tempfile
 from typing import BinaryIO, Callable
 from urllib.request import Request, urlopen
 
-from .seasons import RMUC2026, FieldSource, season_of
+from .seasons import RMUC2026, FieldSource, SurfaceGuideSource, season_of
 
 
 # 1.x module constants: the RMUC 2026 pins, kept for existing imports.
@@ -53,7 +53,7 @@ class DownloadedStep:
 
 @dataclass(frozen=True)
 class DownloadedRulebook:
-    """Identity of the pinned local V2.0.0 rulebook reference."""
+    """Identity of a pinned local rulebook reference."""
 
     path: Path
     size_bytes: int
@@ -204,9 +204,27 @@ def download_official_step(
             temporary_path.unlink(missing_ok=True)
 
 
-def verify_official_rulebook_v2_0_0(path: Path) -> DownloadedRulebook:
-    """Verify the exact V2.0.0 PDF used by the optional overhead guide."""
+def _rulebook_identity(guide: SurfaceGuideSource | None) -> tuple[str, int, str]:
+    """URL, size and SHA-256 of ``guide``'s PDF; None is the RMUC 2026 V2.0.0."""
 
+    if guide is None:
+        return (
+            OFFICIAL_RULEBOOK_V2_0_0_URL,
+            OFFICIAL_RULEBOOK_V2_0_0_SIZE,
+            OFFICIAL_RULEBOOK_V2_0_0_SHA256,
+        )
+    return guide.file.url, guide.file.size_bytes, guide.file.sha256
+
+
+def verify_official_rulebook_v2_0_0(
+    path: Path, guide: SurfaceGuideSource | None = None
+) -> DownloadedRulebook:
+    """Verify the exact PDF used by a season's optional overhead guide.
+
+    The default is the RMUC 2026 V2.0.0 rulebook.
+    """
+
+    _url, expected_size, expected_sha256 = _rulebook_identity(guide)
     requested = Path(path).expanduser()
     if requested.is_symlink():
         raise DownloadError(f"rulebook path must not be a symlink: {requested}")
@@ -214,18 +232,15 @@ def verify_official_rulebook_v2_0_0(path: Path) -> DownloadedRulebook:
     if not candidate.is_file():
         raise DownloadError(f"not a regular rulebook PDF: {candidate}")
     size = candidate.stat().st_size
-    if size != OFFICIAL_RULEBOOK_V2_0_0_SIZE:
-        raise DownloadError(
-            f"rulebook size mismatch: expected={OFFICIAL_RULEBOOK_V2_0_0_SIZE}, actual={size}"
-        )
+    if size != expected_size:
+        raise DownloadError(f"rulebook size mismatch: expected={expected_size}, actual={size}")
     with candidate.open("rb") as handle:
         if handle.read(5) != b"%PDF-":
             raise DownloadError("rulebook file does not have a PDF header")
     digest = _sha256(candidate)
-    if digest != OFFICIAL_RULEBOOK_V2_0_0_SHA256:
+    if digest != expected_sha256:
         raise DownloadError(
-            "rulebook SHA-256 mismatch: "
-            f"expected={OFFICIAL_RULEBOOK_V2_0_0_SHA256}, actual={digest}"
+            f"rulebook SHA-256 mismatch: expected={expected_sha256}, actual={digest}"
         )
     return DownloadedRulebook(candidate, size, digest, reused=True)
 
@@ -236,8 +251,12 @@ def download_official_rulebook_v2_0_0(
     acknowledge_reference_only: bool,
     progress: Callable[[int, int], None] | None = None,
     timeout_seconds: float = 60.0,
+    guide: SurfaceGuideSource | None = None,
 ) -> DownloadedRulebook:
-    """Download and verify the exact official PDF used by the local surface guide."""
+    """Download and verify the exact official PDF used by the local surface guide.
+
+    ``guide`` selects the season's rulebook; the default is RMUC 2026 V2.0.0.
+    """
 
     if not acknowledge_reference_only:
         raise DownloadError(
@@ -248,8 +267,9 @@ def download_official_rulebook_v2_0_0(
     if requested.is_symlink():
         raise DownloadError(f"destination must not be a symlink: {requested}")
     target = requested.resolve()
+    url, expected_size, expected_sha256 = _rulebook_identity(guide)
     if target.exists():
-        verified = verify_official_rulebook_v2_0_0(target)
+        verified = verify_official_rulebook_v2_0_0(target, guide)
         return DownloadedRulebook(
             verified.path,
             verified.size_bytes,
@@ -261,7 +281,7 @@ def download_official_rulebook_v2_0_0(
         raise DownloadError(f"destination parent must not be a symlink: {target.parent}")
 
     request = Request(
-        OFFICIAL_RULEBOOK_V2_0_0_URL,
+        url,
         headers={"User-Agent": "rmuc-mujoco/0.2"},
     )
     temporary_path: Path | None = None
@@ -278,18 +298,16 @@ def download_official_rulebook_v2_0_0(
                 size, digest = _copy_and_hash(
                     response,
                     temporary,
-                    expected_size=OFFICIAL_RULEBOOK_V2_0_0_SIZE,
+                    expected_size=expected_size,
                     progress=progress,
                 )
-        if size != OFFICIAL_RULEBOOK_V2_0_0_SIZE:
+        if size != expected_size:
             raise DownloadError(
-                "downloaded rulebook size mismatch: "
-                f"expected={OFFICIAL_RULEBOOK_V2_0_0_SIZE}, actual={size}"
+                f"downloaded rulebook size mismatch: expected={expected_size}, actual={size}"
             )
-        if digest != OFFICIAL_RULEBOOK_V2_0_0_SHA256:
+        if digest != expected_sha256:
             raise DownloadError(
-                "downloaded rulebook SHA-256 mismatch: "
-                f"expected={OFFICIAL_RULEBOOK_V2_0_0_SHA256}, actual={digest}"
+                f"downloaded rulebook SHA-256 mismatch: expected={expected_sha256}, actual={digest}"
             )
         assert temporary_path is not None
         if target.exists():
@@ -298,7 +316,7 @@ def download_official_rulebook_v2_0_0(
             )
         os.replace(temporary_path, target)
         temporary_path = None
-        verified = verify_official_rulebook_v2_0_0(target)
+        verified = verify_official_rulebook_v2_0_0(target, guide)
         return DownloadedRulebook(
             verified.path,
             verified.size_bytes,

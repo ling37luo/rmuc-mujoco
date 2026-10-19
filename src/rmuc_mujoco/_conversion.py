@@ -23,7 +23,14 @@ from typing import Any, Iterable
 
 import numpy as np
 
-from .seasons import FLY_RAMPS, RMUC2026, FieldSource, season_of, source_for_step
+from .seasons import (
+    FLY_RAMPS,
+    RMUC2026,
+    FieldSource,
+    SurfaceGuideSource,
+    season_of,
+    source_for_step,
+)
 
 
 _RMUC2026_STEP = RMUC2026.default_source
@@ -112,54 +119,89 @@ def validate_official_step(
     return StepIdentity(source, size, digest, field_source.step_product, field_source)
 
 
-def validate_official_rulebook(path: Path, *, verify_hash: bool = True) -> Path:
+def validate_official_rulebook(
+    path: Path,
+    *,
+    verify_hash: bool = True,
+    guide: SurfaceGuideSource | None = None,
+) -> Path:
+    """Check the rulebook PDF of ``guide`` (default: the RMUC 2026 V2.0.0)."""
+
+    if guide is None:
+        version, expected_size, expected_sha256 = (
+            "V2.0.0",
+            OFFICIAL_RULEBOOK_SIZE,
+            OFFICIAL_RULEBOOK_SHA256,
+        )
+    else:
+        version, expected_size, expected_sha256 = (
+            guide.version,
+            guide.file.size_bytes,
+            guide.file.sha256,
+        )
     source = Path(path).expanduser().resolve()
     if not source.is_file():
-        raise FieldBuildError(f"官方V2.0.0规则手册不是常规文件：{source}")
+        raise FieldBuildError(f"官方{version}规则手册不是常规文件：{source}")
     size = source.stat().st_size
-    if size != OFFICIAL_RULEBOOK_SIZE:
+    if size != expected_size:
         raise FieldBuildError(
-            f"官方V2.0.0规则手册大小不匹配：expected={OFFICIAL_RULEBOOK_SIZE}, actual={size}"
+            f"官方{version}规则手册大小不匹配：expected={expected_size}, actual={size}"
         )
     with source.open("rb") as handle:
         if handle.read(5) != b"%PDF-":
-            raise FieldBuildError("官方V2.0.0规则手册缺少PDF文件头")
+            raise FieldBuildError(f"官方{version}规则手册缺少PDF文件头")
     if verify_hash:
         digest = sha256_file(source)
-        if digest != OFFICIAL_RULEBOOK_SHA256:
+        if digest != expected_sha256:
             raise FieldBuildError(
-                "官方V2.0.0规则手册SHA-256不匹配："
-                f"expected={OFFICIAL_RULEBOOK_SHA256}, actual={digest}"
+                f"官方{version}规则手册SHA-256不匹配：expected={expected_sha256}, actual={digest}"
             )
     return source
 
 
-def _crop_overhead_render(image: Any) -> tuple[Any, tuple[int, int, int, int]]:
-    """Remove the white PDF-image margin without guessing field dimensions."""
+def _crop_overhead_render(
+    image: Any,
+    *,
+    pinned_crop: tuple[int, int, int, int] | None = None,
+    expected_aspect: float | None = None,
+) -> tuple[Any, tuple[int, int, int, int]]:
+    """Remove the white PDF-image margin without guessing field dimensions.
+
+    A pinned crop replaces the margin search; ``expected_aspect`` defaults to
+    the 28x15 m battlefield.
+    """
 
     from PIL import Image
 
     rgb = image.convert("RGB")
     pixels = np.asarray(rgb, dtype=np.uint8)
-    dark = np.mean(pixels, axis=2) < 240.0
-    minimum_support = 5
-    x_indices = np.flatnonzero(np.count_nonzero(dark, axis=0) >= minimum_support)
-    y_indices = np.flatnonzero(np.count_nonzero(dark, axis=1) >= minimum_support)
-    if len(x_indices) == 0 or len(y_indices) == 0:
-        raise FieldBuildError("官方俯视渲染图没有检测到战场边界")
-    crop = (
-        int(x_indices[0]),
-        int(y_indices[0]),
-        int(x_indices[-1] + 1),
-        int(y_indices[-1] + 1),
-    )
+    if pinned_crop is not None:
+        crop = tuple(int(value) for value in pinned_crop)
+        if not (
+            0 <= crop[0] < crop[2] <= pixels.shape[1] and 0 <= crop[1] < crop[3] <= pixels.shape[0]
+        ):
+            raise FieldBuildError(f"官方俯视渲染图固定裁剪越界：crop={crop}, size={rgb.size}")
+    else:
+        dark = np.mean(pixels, axis=2) < 240.0
+        minimum_support = 5
+        x_indices = np.flatnonzero(np.count_nonzero(dark, axis=0) >= minimum_support)
+        y_indices = np.flatnonzero(np.count_nonzero(dark, axis=1) >= minimum_support)
+        if len(x_indices) == 0 or len(y_indices) == 0:
+            raise FieldBuildError("官方俯视渲染图没有检测到战场边界")
+        crop = (
+            int(x_indices[0]),
+            int(y_indices[0]),
+            int(x_indices[-1] + 1),
+            int(y_indices[-1] + 1),
+        )
     width = crop[2] - crop[0]
     height = crop[3] - crop[1]
     aspect = width / height
-    expected_aspect = OFFICIAL_CORE_BATTLEFIELD_SIZE_M[0] / OFFICIAL_CORE_BATTLEFIELD_SIZE_M[1]
+    if expected_aspect is None:
+        expected_aspect = OFFICIAL_CORE_BATTLEFIELD_SIZE_M[0] / OFFICIAL_CORE_BATTLEFIELD_SIZE_M[1]
     if not 0.98 * expected_aspect <= aspect <= 1.02 * expected_aspect:
         raise FieldBuildError(
-            "官方俯视渲染图裁剪比例与28x15米战场不匹配："
+            "官方俯视渲染图裁剪比例与战场不匹配："
             f"crop={crop}, aspect={aspect:.6f}, expected={expected_aspect:.6f}"
         )
     return Image.fromarray(pixels[crop[1] : crop[3], crop[0] : crop[2]]), crop
@@ -170,21 +212,32 @@ def _extract_rulebook_surface_guide(
     output: Path,
     *,
     cad_outer_xy_bounds_m: list[list[float]],
+    guide: SurfaceGuideSource | None = None,
 ) -> dict[str, Any]:
+    """Cut ``guide``'s overhead render (default: the RMUC 2026 V2.0.0 page)."""
+
     from PIL import Image
 
+    guide = _RMUC2026_GUIDE if guide is None else guide
+    page = guide.overhead_pdf_page
+    bounds = np.asarray(cad_outer_xy_bounds_m, dtype=np.float64)
+    if bounds.shape != (2, 2) or not np.isfinite(bounds).all():
+        raise FieldBuildError("CAD外包矩形不是有限的2x2 XY边界")
+    extents = bounds[1] - bounds[0]
+    if np.any(extents <= 0.0):
+        raise FieldBuildError(f"CAD外包矩形尺寸无效：{extents.tolist()}")
     pdfimages = shutil.which("pdfimages")
     if pdfimages is None:
         raise FieldBuildError("系统缺少pdfimages，无法提取官方规则手册俯视图")
     with tempfile.TemporaryDirectory(prefix="rmuc2026-rulebook-") as temporary:
-        prefix = Path(temporary) / "page32"
+        prefix = Path(temporary) / f"page{page}"
         completed = subprocess.run(
             [
                 pdfimages,
                 "-f",
-                str(OFFICIAL_RULEBOOK_OVERHEAD_PDF_PAGE),
+                str(page),
                 "-l",
-                str(OFFICIAL_RULEBOOK_OVERHEAD_PDF_PAGE),
+                str(page),
                 "-png",
                 "-j",
                 str(rulebook),
@@ -197,7 +250,7 @@ def _extract_rulebook_surface_guide(
         if completed.returncode != 0:
             raise FieldBuildError("pdfimages提取官方俯视图失败：" + completed.stderr.strip())
         candidates: list[tuple[int, Path, tuple[int, int]]] = []
-        for candidate in Path(temporary).glob("page32-*"):
+        for candidate in Path(temporary).glob(f"page{page}-*"):
             try:
                 with Image.open(candidate) as image:
                     width, height = image.size
@@ -206,34 +259,35 @@ def _extract_rulebook_surface_guide(
                 continue
             aspect = width / max(height, 1)
             if (
-                width >= 1000
+                width >= 900
                 and height >= 500
                 and 1.7 <= aspect <= 2.0
                 and mode in {"RGB", "RGBA", "CMYK"}
             ):
                 candidates.append((width * height, candidate, (width, height)))
         if not candidates:
-            raise FieldBuildError("规则手册第32页未找到官方战场俯视渲染图")
+            raise FieldBuildError(f"规则手册第{page}页未找到官方战场俯视渲染图")
         _area, source_image, source_size = max(candidates)
         with Image.open(source_image) as image:
-            cropped, crop = _crop_overhead_render(image)
+            # A pinned crop is the CAD outer rectangle, so it takes its aspect.
+            cropped, crop = _crop_overhead_render(
+                image,
+                pinned_crop=guide.crop_ltrb_px,
+                expected_aspect=(
+                    None if guide.crop_ltrb_px is None else float(extents[0] / extents[1])
+                ),
+            )
         visual_dir = output / "visual"
         visual_dir.mkdir(parents=True, exist_ok=True)
         destination = visual_dir / "official_rulebook_v2_overhead_surface.png"
         cropped.save(destination, format="PNG", optimize=True)
-    bounds = np.asarray(cad_outer_xy_bounds_m, dtype=np.float64)
-    if bounds.shape != (2, 2) or not np.isfinite(bounds).all():
-        raise FieldBuildError("CAD外包矩形不是有限的2x2 XY边界")
-    extents = bounds[1] - bounds[0]
-    if np.any(extents <= 0.0):
-        raise FieldBuildError(f"CAD外包矩形尺寸无效：{extents.tolist()}")
-    return {
+    record = {
         "kind": "official_rulebook_overhead_render_surface_guide",
         "file": str(destination.relative_to(output)),
         "sha256": sha256_file(destination),
         "width_px": int(cropped.width),
         "height_px": int(cropped.height),
-        "source_pdf_page": OFFICIAL_RULEBOOK_OVERHEAD_PDF_PAGE,
+        "source_pdf_page": page,
         "source_image_size_px": list(source_size),
         "source_image_crop_ltrb_px": list(crop),
         "world_mapping": {
@@ -247,12 +301,15 @@ def _extract_rulebook_surface_guide(
         },
         "physics": False,
         "claim_boundary": (
-            "diagnostic illustration extracted from the official V2.0.0 rulebook and fitted to "
-            "the official CAD assembly outer rectangle; it includes baked shadows, robots and "
-            "obstacle appearance, is not a calibrated 28x15 m core-floor texture, and does not "
-            "define contact"
+            f"diagnostic illustration extracted from the official {guide.version} rulebook and "
+            "fitted to the official CAD assembly outer rectangle; it includes baked shadows, "
+            "robots and obstacle appearance, is not a calibrated 28x15 m core-floor texture, "
+            "and does not define contact"
         ),
     }
+    if guide.crop_ltrb_px is not None:
+        record["source_image_crop_rule"] = "pinned_fit_of_render_edges_to_source_heightfield"
+    return record
 
 
 def _link_or_copy(source: str, destination: str) -> str:
@@ -336,13 +393,17 @@ def decorate_field_build(
     base_manifest_stat = manifest_path.stat()
     manifest = json.loads(base_manifest_bytes.decode("utf-8"))
     source = manifest.get("source")
+    field_source = source_for_step(source.get("sha256")) if isinstance(source, dict) else None
     if (
         manifest.get("artifact_type") != "rmuc2026_official_field_mujoco_asset"
         or manifest.get("status") != "PASS"
-        or not isinstance(source, dict)
-        or source.get("sha256") != OFFICIAL_STEP_SHA256
+        or field_source is None
     ):
-        raise FieldBuildError("基础场地产物未绑定通过的官方V2.0.0 STEP")
+        raise FieldBuildError("基础场地产物未绑定通过的已登记官方STEP")
+    season = season_of(field_source)
+    guide = season.surface_guide
+    if guide is None:
+        raise FieldBuildError(f"{season.title}没有登记规则手册俯视图")
     records = list(manifest.get("visual_meshes", []))
     collision = manifest.get("collision")
     if not records or not isinstance(collision, dict):
@@ -365,7 +426,7 @@ def decorate_field_build(
         expected = record.get("sha256")
         if isinstance(expected, str) and sha256_file(path) != expected:
             raise FieldBuildError(f"基础场地产物哈希不匹配：{path}")
-    rulebook = validate_official_rulebook(rulebook_pdf, verify_hash=True)
+    rulebook = validate_official_rulebook(rulebook_pdf, verify_hash=True, guide=guide)
     output = Path(output_dir).expanduser().resolve()
     if output.exists():
         raise FieldBuildError(f"输出目录已存在，拒绝覆盖：{output}")
@@ -375,6 +436,7 @@ def decorate_field_build(
         rulebook,
         output,
         cad_outer_xy_bounds_m=cad_outer_xy_bounds,
+        guide=guide,
     )
     manifest["schema_version"] = max(2, int(manifest.get("schema_version", 1)))
     manifest["derived_from_field_build"] = {
@@ -384,17 +446,17 @@ def decorate_field_build(
         "manifest_copy_mode": "private_atomic_replace",
     }
     manifest["official_rulebook"] = {
-        "version": "V2.0.0",
-        "publication_date": "2026-06-26",
+        "version": guide.version,
+        "publication_date": guide.publication_date,
         "path_at_build": str(rulebook),
-        "size_bytes": OFFICIAL_RULEBOOK_SIZE,
-        "sha256": OFFICIAL_RULEBOOK_SHA256,
-        "official_download_url": OFFICIAL_RULEBOOK_URL,
+        "size_bytes": guide.file.size_bytes,
+        "sha256": guide.file.sha256,
+        "official_download_url": guide.file.url,
     }
     manifest["surface_guide"] = surface
     dimensions = manifest.setdefault("dimensions", {})
     if isinstance(dimensions, dict):
-        dimensions["official_rulebook_url"] = OFFICIAL_RULEBOOK_URL
+        dimensions["official_rulebook_url"] = guide.file.url
     evidence = manifest.setdefault("evidence_boundary", {})
     if isinstance(evidence, dict):
         evidence["official_rulebook_surface_guide"] = True

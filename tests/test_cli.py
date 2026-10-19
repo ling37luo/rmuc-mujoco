@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import dataclasses
 import json
 import math
 from pathlib import Path
@@ -80,12 +81,18 @@ def test_source_cli_reports_the_selected_season(capsys) -> None:
     assert output["rulebook_review"]["latest_reviewed_version"] == "V1.0.0"
 
 
-def test_setup_rejects_a_surface_guide_the_season_lacks(tmp_path: Path) -> None:
+def test_setup_rejects_a_surface_guide_the_season_lacks(tmp_path: Path, monkeypatch) -> None:
+    bare = dataclasses.replace(RMUC2027, surface_guide=None)
+    monkeypatch.setattr("rmuc_mujoco.cli.get_season", lambda season_id: bare)
     assert (
         main(["setup", str(tmp_path / "pack"), "--season", "rmuc2027", "--include-surface-guide"])
         == 2
     )
     assert not (tmp_path / "pack").exists()
+
+
+def test_each_season_caches_its_own_rulebook() -> None:
+    assert default_rulebook_cache(RMUC2027).name == "RMUC2027_rulebook_V1.0.0.pdf"
 
 
 def test_build_commands_reject_unknown_seasons() -> None:
