@@ -28,7 +28,7 @@ from .mjcf import HFIELD_NAME, compose_with_robot, inject_exact_heightfield
 from .query import height_at
 
 
-PROFILE_ORDER = ("full", "interactive_lite", "collision_only")
+PROFILE_ORDER = ("pro", "full", "interactive_lite", "collision_only")
 DEFAULT_ENV_COUNTS = (1, 4, 16)
 DEFAULT_SPEEDS_M_S = (0.3, 0.5, 1.0)
 WHEEL_RADIUS_M = 0.06

@@ -25,6 +25,7 @@ from .energy_unit import load_field_with_energy_unit
 from .errors import Rmuc2026Error
 from .manifest import DEFAULT_RUNTIME_PROFILE, RUNTIME_PROFILE_NAMES, FieldAsset, verify_asset
 from .lite_profile import export_interactive_lite_pack
+from .pro_profile import export_pro_pack
 from .mjcf import UNOFFICIAL_FRICTION_PRESETS, compose_with_robot, load_model
 from .pack import ExportBlocked
 from .perimeter_fence import export_fenced_pack
@@ -86,7 +87,11 @@ def build_parser() -> argparse.ArgumentParser:
     _add_season_option(build)
     build.add_argument("--step", type=Path, required=True)
     build.add_argument("--output", type=Path, required=True)
-    build.add_argument("--target-visual-faces", type=int, default=2_300_000)
+    build.add_argument(
+        "--target-visual-faces",
+        type=int,
+        help="CAD visual face budget (default: the release's full profile; RMUC 2026: 450000, RMUC 2027: 800000)",
+    )
     build.add_argument("--heightfield-resolution", type=float, default=0.02)
     build.add_argument(
         "--experimental-edge-void",
@@ -124,7 +129,11 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help=argparse.SUPPRESS,
     )
-    setup.add_argument("--target-visual-faces", type=int, default=2_300_000)
+    setup.add_argument(
+        "--target-visual-faces",
+        type=int,
+        help="CAD visual face budget (default: the release's full profile; RMUC 2026: 450000, RMUC 2027: 800000)",
+    )
     setup.add_argument("--heightfield-resolution", type=float, default=0.02)
     setup.add_argument(
         "--experimental-edge-void",
@@ -156,6 +165,13 @@ def build_parser() -> argparse.ArgumentParser:
     lite.add_argument("source", type=Path)
     lite.add_argument("output", type=Path)
     lite.add_argument("--interactive-lite-faces", type=int, required=True)
+    pro = commands.add_parser(
+        "pro-pack",
+        help="add a maximum-fidelity visual profile from a larger-budget build of the same STEP",
+    )
+    pro.add_argument("source_build", type=Path)
+    pro.add_argument("runtime_pack", type=Path)
+    pro.add_argument("output", type=Path)
     wall_pack = commands.add_parser(
         "source-wall-pack",
         help="make a local experimental pack with convex official-source wall contact",
@@ -427,7 +443,10 @@ def build_parser() -> argparse.ArgumentParser:
         "--profile",
         choices=RUNTIME_PROFILE_NAMES,
         default=DEFAULT_RUNTIME_PROFILE,
-        help="runtime profile; interactive_lite is available in locally generated lite packs",
+        help=(
+            "runtime profile; interactive_lite and pro are available in locally generated "
+            "lite and pro packs"
+        ),
     )
     view.add_argument(
         "--friction",
@@ -556,6 +575,7 @@ def main(argv: list[str] | None = None) -> int:
             )
             return 0
         if args.command == "build":
+            args.target_visual_faces = _target_visual_faces(args)
             _validate_build_options(args.target_visual_faces, args.heightfield_resolution)
             if args.experimental_edge_void and args.heightfield_resolution != 0.01:
                 raise ValueError("--experimental-edge-void requires --heightfield-resolution 0.01")
@@ -587,6 +607,7 @@ def main(argv: list[str] | None = None) -> int:
             )
             return 0
         if args.command == "setup":
+            args.target_visual_faces = _target_visual_faces(args)
             _validate_build_options(args.target_visual_faces, args.heightfield_resolution)
             if args.experimental_edge_void and args.heightfield_resolution != 0.01:
                 raise ValueError("--experimental-edge-void requires --heightfield-resolution 0.01")
@@ -646,6 +667,22 @@ def main(argv: list[str] | None = None) -> int:
                     {
                         "output": str(args.output.expanduser().resolve()),
                         "perimeter_fence": contract,
+                    },
+                    indent=2,
+                    sort_keys=True,
+                )
+            )
+            return 0
+        if args.command == "pro-pack":
+            result = export_pro_pack(args.source_build, args.runtime_pack, args.output)
+            print(
+                json.dumps(
+                    {
+                        "output": str(args.output.expanduser().resolve()),
+                        "schema_version": result["schema_version"],
+                        "full_visual_faces": result["visual_pro"]["source_visual_faces"],
+                        "pro_visual_faces": result["visual_pro"]["output_visual_faces"],
+                        "validation_status": result["validation_status"],
                     },
                     indent=2,
                     sort_keys=True,
@@ -1421,6 +1458,14 @@ def _viewer_physics_substeps(timestep_s: float) -> int:
     """Advance about one display frame without making a tiny timestep unbounded."""
 
     return min(256, max(1, round(1.0 / (60.0 * timestep_s))))
+
+
+def _target_visual_faces(args: argparse.Namespace) -> int:
+    """The requested CAD visual budget, or the release's full-profile budget."""
+
+    if args.target_visual_faces is not None:
+        return args.target_visual_faces
+    return get_season(args.season).default_source.full_visual_faces
 
 
 def _require_surface_guide(args: argparse.Namespace) -> None:

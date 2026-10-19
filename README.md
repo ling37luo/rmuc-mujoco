@@ -52,11 +52,27 @@ openings are approximations; the base `setup` output does not include this fence
 
 | Profile | Use | Contents |
 | --- | --- | --- |
-| `full` | Interactive viewing and final evaluation | CAD visuals and field collision |
+| `pro` | Maximum visual fidelity | The whole official CAD tessellation, available only in a `pro-pack` export |
+| `full` | Interactive viewing and final evaluation | Simplified CAD visuals and field collision |
+| `interactive_lite` | Optional visual experiment | Further reduced CAD meshes, available only in a `lite-pack` export |
 | `collision_only` | Headless simulation and batch evaluation | Same physics, without CAD visual meshes |
-| `interactive_lite` | Optional visual experiment | Reduced CAD meshes, available only in a `lite-pack` export |
 
 `full` is the viewer default; batch runs default to `collision_only`.
+`setup` and `build` simplify the CAD visuals to the release's full budget
+(RMUC 2026: 450,000 faces; RMUC 2027: 800,000). For `pro`, build the same STEP
+again at the same heightfield resolution with a budget above the drawing's face
+count, keep that source build, and add it to a pack:
+
+```bash
+rmuc-field build --step ~/.cache/rmuc2026-mujoco/RMUC2026_V2.0.0.stp \
+  --output ./runs/field-pro-build --heightfield-resolution 0.01 \
+  --target-visual-faces 2300000 --keep-source-build ./runs/field-source-pro
+rmuc-field pro-pack ./runs/field-source-pro ./local-rmuc2026-field ./runs/field-pro
+```
+
+`pro` shares collision with the other profiles. It splits large CAD groups
+into pieces of at most 150,000 faces, which MuJoCo draws far faster than one
+large mesh, and needs about 1–1.5 GB more memory than `full`.
 Profiles in the same pack share collision and material parameters. The lite
 profile has not demonstrated a consistent resource benefit, so it is not the
 recommended performance option. See `rmuc-field lite-pack --help` to build one.

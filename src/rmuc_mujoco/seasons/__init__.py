@@ -141,6 +141,10 @@ class FieldSource:
     # for them.  A release without walls offers no source-wall layer.
     source_walls: tuple[SourceWall, ...] = ()
     wall_layer_kind: str | None = None
+    # Visual face budget of a default build, whose CAD meshes the full
+    # profile shows.  A budget above the drawing's face count keeps the whole
+    # tessellation; a pro source build uses one.
+    full_visual_faces: int = 2_300_000
     # (material id, source RGBA displayed in its place).  The drawing's own
     # colour stays in each visual mesh's rgba.
     display_stand_in_rgba: tuple[tuple[str, tuple[float, float, float, float]], ...] = ()

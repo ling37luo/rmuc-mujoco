@@ -52,6 +52,8 @@ STEP_V2_0_0 = FieldSource(
         SourceWall(403, "low", 7900, 12, 20, 0.7058552899465835),
     ),
     wall_layer_kind="official_source_convex_walls_402_403_v1",
+    # 446k of the drawing's 2.26M faces.
+    full_visual_faces=450_000,
 )
 
 SEASON = Season(

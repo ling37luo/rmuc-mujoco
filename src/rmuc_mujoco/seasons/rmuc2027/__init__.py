@@ -109,6 +109,9 @@ STEP_V1_0_0 = FieldSource(
         SourceWall(121, "low", 7942, 13, 22, 0.6287067816, (10.30, 10.50, 5.17, 9.15), 3, 0.01125),
     ),
     wall_layer_kind="official_source_derived_convex_walls_v1",
+    # 797k of the drawing's 1.81M faces.  Protected parts keep 192k faces
+    # exact, and builds at 700k or less end above their budget.
+    full_visual_faces=800_000,
     # The drawing paints the floor and the raised field surfaces near black.
     # They are displayed in the RMUC 2026 floor colour, so the default view
     # reads like 2026.

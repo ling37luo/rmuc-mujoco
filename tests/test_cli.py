@@ -560,7 +560,7 @@ def test_setup_cli_downloads_then_builds_locally(
     def fake_build(step_path, output_dir, **options):
         assert Path(step_path) == step
         assert options == {
-            "target_visual_faces": 2_300_000,
+            "target_visual_faces": 450_000,
             "heightfield_resolution_m": 0.02,
             "include_edge_void": False,
             "include_surface_guide": False,
@@ -779,3 +779,13 @@ def test_spawns_cli_rejects_inverted_height_range(field_asset_dir: Path, capsys)
         == 2
     )
     assert "ordered" in capsys.readouterr().err
+
+
+def test_build_budget_defaults_to_the_release_full_profile() -> None:
+    from rmuc_mujoco.cli import _target_visual_faces
+
+    parse = build_parser().parse_args
+    assert _target_visual_faces(parse(["setup", "pack"])) == 450_000
+    assert _target_visual_faces(parse(["setup", "pack", "--season", "rmuc2027"])) == 800_000
+    explicit = parse(["build", "--step", "x", "--output", "y", "--target-visual-faces", "2300000"])
+    assert _target_visual_faces(explicit) == 2_300_000

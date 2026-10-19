@@ -39,6 +39,7 @@ from .manifest import (
     verify_asset,
 )
 from .lite_profile import export_interactive_lite_pack
+from .pro_profile import export_pro_pack
 from .mjcf import (
     FIELD_ATTACH_PREFIX,
     FIELD_COLLISION_GEOM_NAME,
@@ -117,6 +118,7 @@ __all__ = [
     "FieldBoundaryGuard",
     "FieldDisplayController",
     "export_interactive_lite_pack",
+    "export_pro_pack",
     "ControlCallback",
     "NoOpController",
     "HEIGHTFIELD_CLAIM_BOUNDARY",

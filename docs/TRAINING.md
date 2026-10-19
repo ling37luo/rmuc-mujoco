@@ -69,7 +69,7 @@ Starting from the quick-start fenced pack and its retained source build:
 
 ```bash
 rmuc-field lite-pack ./runs/field-fenced ./runs/field-lite \
-  --interactive-lite-faces 600000
+  --interactive-lite-faces 250000
 rmuc-field source-wall-pack ./runs/field-source ./runs/field-lite ./runs/field-contacts
 rmuc-field tunnel-pack ./runs/field-source ./runs/field-contacts ./runs/field-tunnels
 ```

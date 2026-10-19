@@ -40,8 +40,9 @@ SUPPORTED_SCHEMA_VERSION = 4
 SUPPORTED_SCHEMA_VERSIONS = frozenset({1, 2, 3, SUPPORTED_SCHEMA_VERSION})
 SUPPORTED_VALIDATION_STATUS = "DRAFT_BLOCKED"
 DEFAULT_RUNTIME_PROFILE = "full"
-RUNTIME_PROFILE_NAMES = ("full", "interactive_lite", "collision_only")
+RUNTIME_PROFILE_NAMES = ("pro", "full", "interactive_lite", "collision_only")
 LITE_VISUAL_METHOD = "quadric_decimation_per_cad_visual_group_v1"
+PRO_VISUAL_METHOD = "official_source_build_at_larger_visual_budget_v1"
 CURRENT_COLLISION_KIND = "top_surface_heightfield_proxy"
 LEGACY_COLLISION_KIND = "conservative_top_surface_heightfield"
 SUPPORTED_COLLISION_KINDS = frozenset({CURRENT_COLLISION_KIND, LEGACY_COLLISION_KIND})
@@ -605,6 +606,9 @@ def _validate_cross_references(
     lite_visual = _validate_visual_lite(
         manifest, files, visual_meshes=visual, schema_version=schema_version, verify=verify
     )
+    pro_visual = _validate_visual_pro(
+        manifest, files, visual_meshes=visual, schema_version=schema_version, verify=verify
+    )
     tunnel_meshes = _validate_tunnel_contact_layer(manifest, files, collision=collision)
     source_contact_meshes = _validate_source_contact_layer(
         manifest, files, collision=collision, schema_version=schema_version
@@ -630,6 +634,7 @@ def _validate_cross_references(
         livery_contract=livery_contract,
         fence_contract=fence_contract,
         lite_visual=lite_visual,
+        pro_visual=pro_visual,
         # Tunnel roofs use the same contact-mesh geom contract as source walls.
         source_contact_meshes=source_contact_meshes + tunnel_meshes,
     )
@@ -1037,34 +1042,166 @@ def _validate_visual_lite(
     )
     if target >= source_total or output_total > target:
         raise ManifestError("visual_lite face budget does not reduce the full visual")
-    meshes = lite.get("meshes")
+    return _validate_profile_meshes(
+        manifest,
+        files,
+        key="visual_lite",
+        role="cad_visual_mesh_lite",
+        visual_meshes=visual_meshes,
+        totals=(source_total, output_total),
+        verify=verify,
+    )
+
+
+def _validate_visual_pro(
+    manifest: Mapping[str, Any],
+    files: Mapping[str, Path],
+    *,
+    visual_meshes: list[Any],
+    schema_version: int,
+    verify: bool,
+) -> tuple[str, ...] | None:
+    value = manifest.get("visual_pro")
+    if value is None:
+        return None
+    if schema_version != 4:
+        raise ManifestError("visual_pro requires runtime-pack schema_version 4")
+    pro = _mapping(value, label="visual_pro")
+    if set(pro) != {
+        "source_profile",
+        "method",
+        "source_build",
+        "source_visual_faces",
+        "output_visual_faces",
+        "max_chunk_faces",
+        "physics_changed",
+        "meshes",
+    }:
+        raise ManifestError("visual_pro contains unsupported or missing fields")
+    if (
+        pro.get("source_profile") != "full"
+        or pro.get("method") != PRO_VISUAL_METHOD
+        or pro.get("physics_changed") is not False
+    ):
+        raise ManifestError("visual_pro source, method, or physics contract is invalid")
+    build = _mapping(pro.get("source_build"), label="visual_pro.source_build")
+    if set(build) != {"manifest_sha256", "target_visual_faces"}:
+        raise ManifestError("visual_pro.source_build contains unsupported or missing fields")
+    _sha256(build.get("manifest_sha256"), label="visual_pro.source_build.manifest_sha256")
+    _integer(
+        build.get("target_visual_faces"),
+        label="visual_pro.source_build.target_visual_faces",
+        minimum=1,
+    )
+    source_total = _integer(
+        pro.get("source_visual_faces"), label="visual_pro.source_visual_faces", minimum=1
+    )
+    output_total = _integer(
+        pro.get("output_visual_faces"), label="visual_pro.output_visual_faces", minimum=1
+    )
+    if output_total <= source_total:
+        raise ManifestError("visual_pro does not add detail to the full visual")
+    max_chunk = _integer(pro.get("max_chunk_faces"), label="visual_pro.max_chunk_faces", minimum=1)
+    meshes = pro.get("meshes")
     if not isinstance(meshes, list) or len(meshes) != len(visual_meshes):
-        raise ManifestError("visual_lite must cover every full CAD visual mesh")
+        raise ManifestError("visual_pro must cover every full CAD visual mesh")
     file_roles = {item["file"]: item["role"] for item in manifest["contents"]["files"]}
     source_sum = 0
     output_sum = 0
-    lite_files: list[str] = []
+    pro_files: list[str] = []
     for index, (value, source_value) in enumerate(zip(meshes, visual_meshes)):
-        row = _mapping(value, label=f"visual_lite.meshes[{index}]")
+        label = f"visual_pro.meshes[{index}]"
+        row = _mapping(value, label=label)
         source_row = _mapping(source_value, label=f"visual_meshes[{index}]")
-        if set(row) != {"source_file", "file", "sha256", "source_faces", "faces"}:
-            raise ManifestError(f"visual_lite.meshes[{index}] contains unsupported fields")
+        if set(row) != {"source_file", "source_faces", "faces", "chunks"}:
+            raise ManifestError(f"{label} contains unsupported fields")
         source_relative = str(source_row["file"])
         if row.get("source_file") != source_relative:
-            raise ManifestError(f"visual_lite.meshes[{index}] has the wrong source mesh")
-        relative = _nonempty_string(row.get("file"), label=f"visual_lite.meshes[{index}].file")
-        digest = _sha256(row.get("sha256"), label=f"visual_lite.meshes[{index}].sha256")
-        _require_cross_file(files, manifest, relative, digest, label=f"visual_lite.meshes[{index}]")
+            raise ManifestError(f"{label} has the wrong source mesh")
+        source_faces = _integer(row.get("source_faces"), label=f"{label}.source_faces", minimum=1)
+        faces = _integer(row.get("faces"), label=f"{label}.faces", minimum=1)
+        chunks = row.get("chunks")
+        if not isinstance(chunks, list) or not chunks:
+            raise ManifestError(f"{label}.chunks must list the mesh's files")
+        chunk_faces = 0
+        for number, chunk_value in enumerate(chunks):
+            chunk_label = f"{label}.chunks[{number}]"
+            chunk = _mapping(chunk_value, label=chunk_label)
+            if set(chunk) != {"file", "sha256", "faces"}:
+                raise ManifestError(f"{chunk_label} contains unsupported fields")
+            relative = _nonempty_string(chunk.get("file"), label=f"{chunk_label}.file")
+            digest = _sha256(chunk.get("sha256"), label=f"{chunk_label}.sha256")
+            _require_cross_file(files, manifest, relative, digest, label=chunk_label)
+            if relative == source_relative or Path(relative).suffix.lower() != ".obj":
+                raise ManifestError(f"{chunk_label} is not an independent OBJ")
+            if file_roles[relative] != "cad_visual_mesh_pro":
+                raise ManifestError(f"{chunk_label} has the wrong file role")
+            count = _integer(chunk.get("faces"), label=f"{chunk_label}.faces", minimum=1)
+            if len(chunks) > 1 and count > max_chunk:
+                raise ManifestError(f"{chunk_label} exceeds visual_pro.max_chunk_faces")
+            if verify:
+                with files[relative].open("rb") as stream:
+                    observed = sum(line.startswith(b"f ") for line in stream)
+                if observed != count:
+                    raise ManifestError(f"visual_pro face count disagrees with {relative}")
+            chunk_faces += count
+            pro_files.append(relative)
+        if chunk_faces != faces:
+            raise ManifestError(f"{label} chunk faces disagree with its total")
+        if verify:
+            with files[source_relative].open("rb") as stream:
+                observed = sum(line.startswith(b"f ") for line in stream)
+            if observed != source_faces:
+                raise ManifestError(f"visual_pro face count disagrees with {source_relative}")
+        source_sum += source_faces
+        output_sum += faces
+    if (source_sum, output_sum) != (source_total, output_total) or len(set(pro_files)) != len(
+        pro_files
+    ):
+        raise ManifestError("visual_pro face totals or file identities are inconsistent")
+    return tuple(pro_files)
+
+
+def _validate_profile_meshes(
+    manifest: Mapping[str, Any],
+    files: Mapping[str, Path],
+    *,
+    key: str,
+    role: str,
+    visual_meshes: list[Any],
+    totals: tuple[int, int],
+    verify: bool,
+) -> tuple[str, ...]:
+    """Check a visual profile's per-mesh replacements of the full CAD meshes."""
+
+    meshes = manifest[key].get("meshes")
+    if not isinstance(meshes, list) or len(meshes) != len(visual_meshes):
+        raise ManifestError(f"{key} must cover every full CAD visual mesh")
+    file_roles = {item["file"]: item["role"] for item in manifest["contents"]["files"]}
+    source_sum = 0
+    output_sum = 0
+    profile_files: list[str] = []
+    for index, (value, source_value) in enumerate(zip(meshes, visual_meshes)):
+        row = _mapping(value, label=f"{key}.meshes[{index}]")
+        source_row = _mapping(source_value, label=f"visual_meshes[{index}]")
+        if set(row) != {"source_file", "file", "sha256", "source_faces", "faces"}:
+            raise ManifestError(f"{key}.meshes[{index}] contains unsupported fields")
+        source_relative = str(source_row["file"])
+        if row.get("source_file") != source_relative:
+            raise ManifestError(f"{key}.meshes[{index}] has the wrong source mesh")
+        relative = _nonempty_string(row.get("file"), label=f"{key}.meshes[{index}].file")
+        digest = _sha256(row.get("sha256"), label=f"{key}.meshes[{index}].sha256")
+        _require_cross_file(files, manifest, relative, digest, label=f"{key}.meshes[{index}]")
         if relative == source_relative or Path(relative).suffix.lower() != ".obj":
-            raise ManifestError(f"visual_lite.meshes[{index}] is not an independent OBJ")
-        if file_roles[relative] != "cad_visual_mesh_lite":
-            raise ManifestError(f"visual_lite.meshes[{index}] has the wrong file role")
+            raise ManifestError(f"{key}.meshes[{index}] is not an independent OBJ")
+        if file_roles[relative] != role:
+            raise ManifestError(f"{key}.meshes[{index}] has the wrong file role")
         source_faces = _integer(
-            row.get("source_faces"), label=f"visual_lite.meshes[{index}].source_faces", minimum=1
+            row.get("source_faces"), label=f"{key}.meshes[{index}].source_faces", minimum=1
         )
-        faces = _integer(row.get("faces"), label=f"visual_lite.meshes[{index}].faces", minimum=1)
+        faces = _integer(row.get("faces"), label=f"{key}.meshes[{index}].faces", minimum=1)
         if faces > source_faces:
-            raise ManifestError(f"visual_lite.meshes[{index}] adds faces")
+            raise ManifestError(f"{key}.meshes[{index}] adds faces")
         if verify:
             for path, expected in (
                 (files[source_relative], source_faces),
@@ -1073,17 +1210,13 @@ def _validate_visual_lite(
                 with path.open("rb") as stream:
                     observed = sum(line.startswith(b"f ") for line in stream)
                 if observed != expected:
-                    raise ManifestError(f"visual_lite face count disagrees with {path.name}")
+                    raise ManifestError(f"{key} face count disagrees with {path.name}")
         source_sum += source_faces
         output_sum += faces
-        lite_files.append(relative)
-    if (
-        source_sum != source_total
-        or output_sum != output_total
-        or len(set(lite_files)) != len(lite_files)
-    ):
-        raise ManifestError("visual_lite face totals or file identities are inconsistent")
-    return tuple(lite_files)
+        profile_files.append(relative)
+    if (source_sum, output_sum) != totals or len(set(profile_files)) != len(profile_files):
+        raise ManifestError(f"{key} face totals or file identities are inconsistent")
+    return tuple(profile_files)
 
 
 def _samples_before_tunnels(collision: Mapping[str, Any]) -> object:
@@ -1348,6 +1481,7 @@ def _validate_runtime_profiles(
     livery_contract: _RuntimeLiveryContract | None,
     fence_contract: Mapping[str, Any] | None,
     lite_visual: tuple[str, ...] | None,
+    pro_visual: tuple[str, ...] | None,
     source_contact_meshes: tuple[Mapping[str, Any], ...],
 ) -> None:
     """Validate the optional schema-1 profile extension and its MJCF semantics.
@@ -1369,6 +1503,8 @@ def _validate_runtime_profiles(
     expected_names = {"full", "collision_only"}
     if lite_visual is not None:
         expected_names.add("interactive_lite")
+    if pro_visual is not None:
+        expected_names.add("pro")
     if set(profiles) != expected_names:
         raise ManifestError("runtime_profiles disagree with the declared visual profiles")
 
@@ -1392,6 +1528,13 @@ def _validate_runtime_profiles(
             "visual_mesh_count": len(lite_visual),
             "intended_use": "interactive_visualization_lite",
             "file_role": "field_mjcf_interactive_lite",
+        }
+    if pro_visual is not None:
+        expected["pro"] = {
+            "includes_visual_meshes": True,
+            "visual_mesh_count": len(pro_visual),
+            "intended_use": "maximum_fidelity_visualization",
+            "file_role": "field_mjcf_pro",
         }
     entrypoints: set[str] = set()
     for name in RUNTIME_PROFILE_NAMES:
@@ -1429,11 +1572,10 @@ def _validate_runtime_profiles(
             profile=name,
             expected_visual_mesh_count=int(wanted["visual_mesh_count"]),
             expected_visual_mesh_files=(
-                visual_mesh_files
-                if name == "full"
-                else lite_visual
-                if name == "interactive_lite"
-                else ()
+                {"full": visual_mesh_files, "interactive_lite": lite_visual, "pro": pro_visual}.get(
+                    name
+                )
+                or ()
             ),
             collision_contract=collision_contract,
             require_named_lighting=require_named_lighting,
@@ -1444,18 +1586,62 @@ def _validate_runtime_profiles(
 
     if manifest["contents"]["entrypoint"] != profiles["full"]["entrypoint"]:
         raise ManifestError("contents.entrypoint must remain the full runtime profile")
-    if lite_visual is not None:
+    # A visual profile may differ from full only in its CAD meshes.
+    for name, key in (("interactive_lite", "visual_lite"), ("pro", "visual_pro")):
+        if name not in expected_names:
+            continue
         full_xml = ET.parse(files[str(profiles["full"]["entrypoint"])]).getroot()
-        lite_xml = ET.parse(files[str(profiles["interactive_lite"]["entrypoint"])]).getroot()
-        replacements = {
-            row["file"]: row["source_file"] for row in manifest["visual_lite"]["meshes"]
-        }
-        for mesh in lite_xml.findall("./asset/mesh"):
+        profile_xml = ET.parse(files[str(profiles[name]["entrypoint"])]).getroot()
+        rows = manifest[key]["meshes"]
+        if name == "pro":
+            _fold_pro_chunks(profile_xml, rows)
+            replacements = {row["chunks"][0]["file"]: row["source_file"] for row in rows}
+        else:
+            replacements = {row["file"]: row["source_file"] for row in rows}
+        for mesh in profile_xml.findall("./asset/mesh"):
             current = mesh.get("file")
             if current in replacements:
                 mesh.set("file", replacements[current])
-        if _semantic_xml(full_xml) != _semantic_xml(lite_xml):
-            raise ManifestError("interactive_lite changes MJCF beyond visual mesh files")
+        if _semantic_xml(full_xml) != _semantic_xml(profile_xml):
+            raise ManifestError(f"{name} changes MJCF beyond visual mesh files")
+
+
+def _fold_pro_chunks(root: ET.Element, rows: list[Any]) -> None:
+    """Remove each split group's extra chunk assets and geoms, after checking them.
+
+    Chunk ``n`` must copy the first chunk's mesh asset and geom except for the
+    name (``__chunk<n>`` added) and the mesh file or reference.
+    """
+
+    parents = {child: parent for parent in root.iter() for child in parent}
+    assets = {mesh.get("file"): mesh for mesh in root.findall("./asset/mesh")}
+    geoms = {geom.get("mesh"): geom for geom in root.iter("geom") if geom.get("mesh")}
+    for row in rows:
+        chunks = row["chunks"]
+        first = assets.get(chunks[0]["file"])
+        if first is None:
+            raise ManifestError(f"pro MJCF lacks {chunks[0]['file']}")
+        base_name = str(first.get("name"))
+        base_geom = geoms.get(base_name)
+        for number, chunk in enumerate(chunks[1:], start=1):
+            extra = assets.get(chunk["file"])
+            extra_name = f"{base_name}__chunk{number}"
+            extra_geom = geoms.get(extra_name)
+            if (
+                extra is None
+                or base_geom is None
+                or extra_geom is None
+                or extra.attrib != {**first.attrib, "name": extra_name, "file": chunk["file"]}
+                or extra_geom.attrib
+                != {
+                    **base_geom.attrib,
+                    "name": f"{base_geom.get('name')}__chunk{number}",
+                    "mesh": extra_name,
+                }
+            ):
+                raise ManifestError(f"pro chunk {chunk['file']} is not a copy of its first chunk")
+            parents[extra].remove(extra)
+            parents[extra_geom].remove(extra_geom)
 
 
 def _semantic_xml(element: ET.Element) -> tuple[object, ...]:

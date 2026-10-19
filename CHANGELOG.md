@@ -12,6 +12,14 @@ does not remove the full field's `DRAFT_BLOCKED` status.
   toggles it in `view` as on RMUC 2026; the defaults stay flat lighting with
   the livery off. The drawing's red side is +x, so the guide is the figure
   turned half a turn. RMUC 2026 guides are unchanged.
+- Added the `pro` runtime profile and `pro-pack`: a pack can show the whole
+  official CAD tessellation from a larger-budget source build of the same STEP.
+  `pro` differs from `full` only in its CAD meshes; groups above 150,000
+  faces are split into pieces, since MuJoCo draws one large mesh far more
+  slowly (RMUC 2027 pro: 104 fps whole, about 1,300 fps split).
+- `setup` and `build` now default to each release's full budget (RMUC 2026:
+  450,000 faces; RMUC 2027: 800,000) instead of 2,300,000, so `full` is the
+  moderate default. Pass `--target-visual-faces` for another budget.
 - RMUC 2027 packs display the drawing's near-black floor and raised field
   surfaces in the RMUC 2026 floor colour. Each visual mesh keeps its source
   colour in `rgba`; RMUC 2026 colours are unchanged.
