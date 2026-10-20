@@ -9,6 +9,8 @@ import zlib
 import numpy as np
 import pytest
 
+from rmuc_mujoco.manifest import FieldAsset
+
 
 OFFICIAL_STEP_SHA256 = "8dfe9ebd761e44d91361b3e593bc05416329112217b58cb35800b3cde2ffae33"
 OFFICIAL_STEP_SIZE = 1_254_821_405
@@ -37,6 +39,34 @@ def _heightfield_bootstrap_png(height_m: np.ndarray, maximum_height_m: float) ->
         + chunk(b"IDAT", zlib.compress(scanlines))
         + chunk(b"IEND", b"")
     )
+
+
+@pytest.fixture(autouse=True, scope="session")
+def _accepted_manifests_match_the_published_schema():
+    """Every manifest FieldAsset accepts must match schema/runtime-pack.schema.json."""
+
+    try:
+        import jsonschema
+    except ImportError:
+        yield
+        return
+    schema_path = Path(__file__).resolve().parents[1] / "schema/runtime-pack.schema.json"
+    validator = jsonschema.Draft202012Validator(json.loads(schema_path.read_text(encoding="utf-8")))
+    original = FieldAsset.open.__func__
+
+    def open_checked(cls, root, *args, **kwargs):
+        asset = original(cls, root, *args, **kwargs)
+        errors = [
+            f"/{'/'.join(map(str, error.absolute_path))}: {error.message}"
+            for error in validator.iter_errors(asset.manifest)
+        ]
+        if errors:
+            raise AssertionError(f"{root} passes FieldAsset but not the published schema: {errors}")
+        return asset
+
+    FieldAsset.open = classmethod(open_checked)
+    yield
+    FieldAsset.open = classmethod(original)
 
 
 def _file_record(root: Path, relative: str, role: str) -> dict[str, object]:

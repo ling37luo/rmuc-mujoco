@@ -45,6 +45,7 @@ viewer = [
   "pynput>=1.8,<2",
 ]
 test = [
+  "jsonschema>=4.18,<5",
   "networkx>=3,<4",
   "pillow>=10,<13",
   "pytest>=8,<9",

@@ -4,6 +4,14 @@ User-visible changes by release. Generated field packs and official assets are
 built locally and are not included in releases. Passing individual scenarios
 does not remove the full field's `DRAFT_BLOCKED` status.
 
+## [Unreleased]
+
+- `schema/runtime-pack.schema.json` describes 2.x packs: schema versions 3 and
+  4, the `interactive_lite` and `pro` profiles with their `visual_lite` and
+  `visual_pro` records, livery pieces, perimeter fences, source walls, tunnel
+  roofs and edge voids. The previous schema rejected every 2.x pack. Tests now
+  check each manifest that `FieldAsset` accepts against it.
+
 ## [2.1.1] - 2026-10-21
 
 - The rulebook livery mesh is split into pieces of at most 150,000 faces, as

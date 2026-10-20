@@ -1,6 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "title": "RMUC 2026 MuJoCo local runtime asset pack",
+  "title": "RMUC MuJoCo local runtime asset pack",
+  "description": "manifest.json of a runtime pack (RMUC 2026 and RMUC 2027). The schema states structure and fixed values; FieldAsset.open(verify=True) also checks file hashes and sizes, cross-references between sections, face counts, the perimeter-fence contract and the MJCF of every profile. Schema 1 is the original pack; 2 adds named lighting, display colours and optional layers; 3 marks a heightfield with an audited negative edge void; 4 adds the interactive_lite and pro visual profiles and source contact layers.",
   "type": "object",
   "required": [
     "schema_version",
@@ -11,13 +12,13 @@
     "visual_meshes",
     "collision",
     "coordinate_frame",
+    "heightfield_precision",
     "contents",
-    "runtime_profiles",
     "validation_boundary",
     "distribution"
   ],
   "properties": {
-    "schema_version": {"enum": [1, 2]},
+    "schema_version": {"enum": [1, 2, 3, 4]},
     "artifact_type": {"const": "rmuc2026_mujoco_runtime_asset_pack"},
     "status": {"const": "PASS"},
     "validation_status": {"const": "DRAFT_BLOCKED"},
@@ -43,6 +44,11 @@
           ]
         },
         "official_step_size_bytes": {"type": "integer", "minimum": 1},
+        "official_step_product": {"type": "string", "minLength": 1},
+        "official_download_url": {"type": "string", "minLength": 1},
+        "field_artifact_type": {"type": "string", "minLength": 1},
+        "field_build_status": {"const": "PASS"},
+        "field_manifest_sha256": {"$ref": "#/$defs/sha256"},
         "license_status": {"const": "UNSPECIFIED"},
         "redistribution_authorized": {"const": false},
         "asset_included_in_source_repository": {"const": false}
@@ -50,6 +56,7 @@
       "additionalProperties": true
     },
     "visual_meshes": {
+      "description": "The full profile's CAD visual groups, one OBJ each.",
       "type": "array",
       "minItems": 1,
       "items": {
@@ -57,19 +64,10 @@
         "required": ["file", "sha256", "rgba", "visual_role"],
         "properties": {
           "file": {"type": "string", "minLength": 1},
-          "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
-          "rgba": {
-            "type": "array",
-            "minItems": 4,
-            "maxItems": 4,
-            "items": {"type": "number", "minimum": 0, "maximum": 1}
-          },
-          "display_rgba": {
-            "type": "array",
-            "minItems": 4,
-            "maxItems": 4,
-            "items": {"type": "number", "minimum": 0, "maximum": 1}
-          },
+          "sha256": {"$ref": "#/$defs/sha256"},
+          "material_id": {"type": "string", "minLength": 1},
+          "rgba": {"$ref": "#/$defs/rgba"},
+          "display_rgba": {"$ref": "#/$defs/rgba"},
           "visual_role": {"type": "string", "minLength": 1}
         },
         "additionalProperties": true
@@ -82,6 +80,11 @@
         "source_rgba_preserved_in_visual_meshes_rgba": {"const": true},
         "display_rgba_recorded_per_visual_mesh": {"const": true},
         "physics_changed": {"const": false},
+        "display_stand_in_rgba": {
+          "description": "Display colours that replace a source colour (RMUC 2027 floors), keyed by material.",
+          "type": "object",
+          "additionalProperties": {"$ref": "#/$defs/rgba"}
+        },
         "lighting": {
           "type": "object",
           "required": [
@@ -107,13 +110,13 @@
     },
     "visual_layers": {
       "type": "object",
-      "description": "Optional local-only display layers. Current schema-2 exporters retain the complete rulebook overhead render; readers also accept the earlier filtered-marking schema-2 variant.",
+      "description": "Optional local-only display layers. Current exporters retain the complete rulebook overhead render; readers also accept the earlier filtered-marking schema-2 variant.",
       "properties": {
         "livery": {
           "oneOf": [
             {
               "title": "Complete rulebook overhead livery",
-              "description": "The complete locally extracted overhead render, including baked robots, field modules, obstacles, and shadows. New local exports also record the original image hash and transparent page-edge processing; earlier full-guide packs omit both fields.",
+              "description": "The complete locally extracted overhead render, including baked robots, field modules, obstacles, and shadows. New local exports also record the original image hash and transparent page-edge processing, and split a large mesh into compact pieces listed in mesh_chunks; earlier full-guide packs omit these fields.",
               "type": "object",
               "required": [
                 "kind", "geom_name", "geom_group", "default_visible", "toggle_key",
@@ -128,10 +131,16 @@
                 "toggle_key": {"const": "G"},
                 "physics": {"const": false},
                 "mesh_file": {"type": "string", "pattern": "\\.obj$"},
-                "mesh_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+                "mesh_sha256": {"$ref": "#/$defs/sha256"},
+                "mesh_chunks": {
+                  "description": "Further pieces of the livery mesh, each its own mesh asset and a geom copying the guide's; mesh_file holds the first piece.",
+                  "type": "array",
+                  "minItems": 1,
+                  "items": {"$ref": "#/$defs/meshPiece"}
+                },
                 "texture_file": {"type": "string", "pattern": "\\.png$"},
-                "texture_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
-                "source_texture_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+                "texture_sha256": {"$ref": "#/$defs/sha256"},
+                "source_texture_sha256": {"$ref": "#/$defs/sha256"},
                 "edge_processing": {
                   "type": "object",
                   "required": [
@@ -159,7 +168,8 @@
               },
               "dependentRequired": {
                 "source_texture_sha256": ["edge_processing"],
-                "edge_processing": ["source_texture_sha256"]
+                "edge_processing": ["source_texture_sha256"],
+                "mesh_chunks": ["edge_processing"]
               },
               "additionalProperties": false
             },
@@ -182,9 +192,9 @@
                 "toggle_key": {"const": "G"},
                 "physics": {"const": false},
                 "mesh_file": {"type": "string", "pattern": "\\.obj$"},
-                "mesh_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+                "mesh_sha256": {"$ref": "#/$defs/sha256"},
                 "texture_file": {"type": "string", "pattern": "\\.png$"},
-                "texture_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+                "texture_sha256": {"$ref": "#/$defs/sha256"},
                 "source_kind": {"const": "official_rulebook_overhead_render_surface_guide"},
                 "source_contains_baked_scene_content": {
                   "const": [
@@ -295,9 +305,86 @@
       },
       "additionalProperties": false
     },
+    "visual_lite": {
+      "description": "The interactive_lite profile: each CAD group decimated to a total face budget. Schema 4.",
+      "type": "object",
+      "required": [
+        "source_profile", "method", "target_visual_faces", "source_visual_faces",
+        "output_visual_faces", "physics_changed", "meshes"
+      ],
+      "properties": {
+        "source_profile": {"const": "full"},
+        "method": {"const": "quadric_decimation_per_cad_visual_group_v1"},
+        "target_visual_faces": {"type": "integer", "minimum": 1},
+        "source_visual_faces": {"type": "integer", "minimum": 1},
+        "output_visual_faces": {"type": "integer", "minimum": 1},
+        "physics_changed": {"const": false},
+        "meshes": {
+          "description": "One row per visual_meshes entry, in the same order.",
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "required": ["source_file", "file", "sha256", "source_faces", "faces"],
+            "properties": {
+              "source_file": {"type": "string", "minLength": 1},
+              "file": {"type": "string", "pattern": "\\.obj$"},
+              "sha256": {"$ref": "#/$defs/sha256"},
+              "source_faces": {"type": "integer", "minimum": 1},
+              "faces": {"type": "integer", "minimum": 1}
+            },
+            "additionalProperties": false
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "visual_pro": {
+      "description": "The pro profile: each CAD group from a larger-budget source build of the same STEP. Groups above max_chunk_faces are split into pieces, each its own mesh asset and geom. Schema 4.",
+      "type": "object",
+      "required": [
+        "source_profile", "method", "source_build", "source_visual_faces",
+        "output_visual_faces", "max_chunk_faces", "physics_changed", "meshes"
+      ],
+      "properties": {
+        "source_profile": {"const": "full"},
+        "method": {"const": "official_source_build_at_larger_visual_budget_v1"},
+        "source_build": {
+          "type": "object",
+          "required": ["manifest_sha256", "target_visual_faces"],
+          "properties": {
+            "manifest_sha256": {"$ref": "#/$defs/sha256"},
+            "target_visual_faces": {"type": "integer", "minimum": 1}
+          },
+          "additionalProperties": false
+        },
+        "source_visual_faces": {"type": "integer", "minimum": 1},
+        "output_visual_faces": {"type": "integer", "minimum": 1},
+        "max_chunk_faces": {"type": "integer", "minimum": 1},
+        "physics_changed": {"const": false},
+        "meshes": {
+          "description": "One row per visual_meshes entry, in the same order.",
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "required": ["source_file", "source_faces", "faces", "chunks"],
+            "properties": {
+              "source_file": {"type": "string", "minLength": 1},
+              "source_faces": {"type": "integer", "minimum": 1},
+              "faces": {"type": "integer", "minimum": 1},
+              "chunks": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/meshPiece"}}
+            },
+            "additionalProperties": false
+          }
+        }
+      },
+      "additionalProperties": false
+    },
     "collision": {
       "type": "object",
       "required": [
+        "kind",
         "image_file",
         "image_sha256",
         "samples_file",
@@ -307,17 +394,30 @@
         "half_size_xy_m",
         "geom_center_after_translation_m",
         "maximum_height_m",
-        "base_depth_m"
+        "minimum_height_m",
+        "base_depth_m",
+        "png_rows"
       ],
       "properties": {
+        "kind": {"enum": ["top_surface_heightfield_proxy", "conservative_top_surface_heightfield"]},
         "image_file": {"type": "string", "minLength": 1},
-        "image_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "image_sha256": {"$ref": "#/$defs/sha256"},
         "samples_file": {"type": "string", "minLength": 1},
-        "samples_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "samples_sha256": {"$ref": "#/$defs/sha256"},
         "rows_y": {"type": "integer", "minimum": 2},
         "columns_x": {"type": "integer", "minimum": 2},
+        "half_size_xy_m": {
+          "type": "array", "minItems": 2, "maxItems": 2,
+          "items": {"type": "number", "exclusiveMinimum": 0}
+        },
+        "geom_center_after_translation_m": {"$ref": "#/$defs/xyz"},
         "maximum_height_m": {"type": "number", "exclusiveMinimum": 0},
-        "base_depth_m": {"type": "number", "minimum": 0},
+        "minimum_height_m": {
+          "description": "Negative only with an audited edge void (schema 3, or schema 4 carrying one).",
+          "type": "number"
+        },
+        "base_depth_m": {"type": "number", "exclusiveMinimum": 0},
+        "png_rows": {"const": "flipped_y_for_mujoco_hfield_loader"},
         "ray_misses_filled_with_ground": {
           "description": "Samples where the CAD ray hit nothing and a proxy ground value was stored; null when the source build did not measure it.",
           "type": ["integer", "null"],
@@ -330,70 +430,312 @@
         },
         "structural_audit": {
           "description": "Single-valued 2.5-D topology declaration carried from the source build.",
+          "type": "object",
+          "properties": {
+            "underpasses_and_overhangs_preserved": {"type": "boolean"},
+            "sealed_underpass_risk": {"type": "boolean"}
+          }
+        },
+        "fixed_fly_ramp_audit": {
+          "description": "RMUC 2026 fly-ramp source audit carried from the source build.",
           "type": "object"
+        },
+        "verified_wall_tip_repair": {
+          "description": "Wall-tip repair record bound to the collision samples it produced.",
+          "type": "object"
+        },
+        "edge_void_provenance": {
+          "description": "Audited negative edge void of a schema-3 heightfield.",
+          "type": "object",
+          "required": [
+            "status", "source_glb_sha256", "mask_file", "mask_sha256", "changed_count",
+            "edge_band_m", "sentinel_height_m"
+          ],
+          "properties": {
+            "status": {"const": "PASS"},
+            "source_glb_sha256": {"$ref": "#/$defs/sha256"},
+            "mask_file": {"type": "string", "pattern": "\\.npz$"},
+            "mask_sha256": {"$ref": "#/$defs/sha256"},
+            "changed_count": {"type": "integer", "minimum": 1},
+            "edge_band_m": {"type": "number", "exclusiveMinimum": 0},
+            "sentinel_height_m": {"type": "number"}
+          },
+          "additionalProperties": false
+        },
+        "source_contact_layer": {
+          "description": "Official source walls as convex contact meshes over a carved heightfield. Schema 4.",
+          "type": "object",
+          "required": [
+            "kind", "status", "source_manifest_sha256", "source_glb_sha256",
+            "base_collision_samples_sha256", "updated_collision_samples_sha256",
+            "roof_nodes_transferred", "ownership_regions", "mesh_geoms", "claim_boundary"
+          ],
+          "properties": {
+            "kind": {
+              "enum": [
+                "official_source_convex_walls_402_403_v1",
+                "official_source_derived_convex_walls_v1"
+              ]
+            },
+            "status": {"const": "EXPERIMENTAL_BLOCKED"},
+            "source_manifest_sha256": {"$ref": "#/$defs/sha256"},
+            "source_glb_sha256": {"$ref": "#/$defs/sha256"},
+            "base_collision_samples_sha256": {"$ref": "#/$defs/sha256"},
+            "updated_collision_samples_sha256": {"$ref": "#/$defs/sha256"},
+            "roof_nodes_transferred": {"type": "integer", "minimum": 1},
+            "ownership_regions": {
+              "type": "array",
+              "minItems": 1,
+              "items": {
+                "type": "object",
+                "required": ["source_part_index", "roof_nodes_transferred"],
+                "properties": {
+                  "source_part_index": {"type": "integer", "minimum": 0},
+                  "roof_nodes_transferred": {"type": "integer", "minimum": 1}
+                }
+              }
+            },
+            "mesh_geoms": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/contactMesh"}},
+            "claim_boundary": {"type": "string", "minLength": 1}
+          },
+          "additionalProperties": false
+        },
+        "tunnel_contact_layer": {
+          "description": "Official tunnel roofs as contact meshes over a lowered channel floor; applied after any source walls.",
+          "type": "object",
+          "required": [
+            "kind", "status", "season", "official_step_version", "source_manifest_sha256",
+            "source_glb_sha256", "base_collision_samples_sha256",
+            "updated_collision_samples_sha256", "roofs", "mesh_geoms", "claim_boundary"
+          ],
+          "properties": {
+            "kind": {"const": "official_source_tunnel_roofs_v1"},
+            "status": {"const": "EXPERIMENTAL_BLOCKED"},
+            "season": {"enum": ["rmuc2026", "rmuc2027"]},
+            "official_step_version": {"type": "string", "minLength": 1},
+            "source_manifest_sha256": {"$ref": "#/$defs/sha256"},
+            "source_glb_sha256": {"$ref": "#/$defs/sha256"},
+            "base_collision_samples_sha256": {"$ref": "#/$defs/sha256"},
+            "updated_collision_samples_sha256": {"$ref": "#/$defs/sha256"},
+            "roofs": {
+              "type": "array",
+              "minItems": 1,
+              "items": {
+                "type": "object",
+                "required": [
+                  "tunnel_id", "source_part_index", "span_world_xy_m", "travel_axis",
+                  "underside_m", "top_m", "floor_m", "clearance_m", "hfield_nodes_lowered",
+                  "changed_grid_rectangle_yx"
+                ],
+                "properties": {
+                  "tunnel_id": {"type": "string", "minLength": 1},
+                  "source_part_index": {"type": "integer", "minimum": 0},
+                  "span_world_xy_m": {
+                    "type": "array", "minItems": 2, "maxItems": 2,
+                    "items": {"type": "array", "minItems": 2, "maxItems": 2, "items": {"type": "number"}}
+                  },
+                  "travel_axis": {"enum": ["x", "y"]},
+                  "underside_m": {"$ref": "#/$defs/pair"},
+                  "top_m": {"$ref": "#/$defs/pair"},
+                  "floor_m": {"$ref": "#/$defs/pair"},
+                  "clearance_m": {
+                    "type": "array", "minItems": 3, "maxItems": 3, "items": {"type": "number"}
+                  },
+                  "hfield_nodes_lowered": {"type": "integer", "minimum": 1},
+                  "changed_grid_rectangle_yx": {
+                    "type": "array", "minItems": 4, "maxItems": 4, "items": {"type": "integer"}
+                  }
+                },
+                "additionalProperties": false
+              }
+            },
+            "mesh_geoms": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/contactMesh"}},
+            "claim_boundary": {"type": "string", "minLength": 1}
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": true
+    },
+    "perimeter_fence": {
+      "description": "Four touching collision boxes around the official core. FieldAsset recomputes the whole record from the pack and requires it to match.",
+      "type": "object",
+      "required": [
+        "schema", "status", "official_core_battlefield_m",
+        "official_fence_top_above_field_floor_m", "placement_basis", "thickness_m",
+        "burial_below_field_floor_m", "panels", "contact"
+      ],
+      "properties": {
+        "schema": {
+          "enum": [
+            "rmuc2026_rulebook_perimeter_proxy_v1",
+            "rmuc2026_rulebook_perimeter_proxy_v2",
+            "rmuc2026_rulebook_perimeter_proxy_v3",
+            "rmuc2026_rulebook_perimeter_proxy_v4",
+            "rmuc2026_rulebook_perimeter_proxy_v5"
+          ]
+        },
+        "status": {"const": "EXPERIMENTAL_PHYSICAL_PROXY"},
+        "official_core_battlefield_m": {"$ref": "#/$defs/pair"},
+        "official_fence_top_above_field_floor_m": {"type": "number", "exclusiveMinimum": 0},
+        "placement_basis": {"type": "string", "minLength": 1},
+        "thickness_m": {"type": "number", "exclusiveMinimum": 0},
+        "burial_below_field_floor_m": {"type": "number", "minimum": 0},
+        "panels": {
+          "type": "array",
+          "minItems": 4,
+          "maxItems": 4,
+          "items": {
+            "type": "object",
+            "required": ["name", "pos", "size"],
+            "properties": {
+              "name": {"type": "string", "minLength": 1},
+              "pos": {"$ref": "#/$defs/xyz"},
+              "size": {"$ref": "#/$defs/xyz"}
+            },
+            "additionalProperties": false
+          }
+        },
+        "contact": {
+          "type": "object",
+          "required": ["contype", "conaffinity", "friction", "solref"],
+          "properties": {
+            "contype": {"const": 2},
+            "conaffinity": {"const": 1},
+            "friction": {"type": "array", "minItems": 3, "maxItems": 3, "items": {"type": "number"}},
+            "solref": {"$ref": "#/$defs/pair"}
+          },
+          "additionalProperties": false
         }
       },
       "additionalProperties": true
     },
     "coordinate_frame": {
       "type": "object",
-      "required": ["world_units", "z_up", "recommended_spawn"],
+      "required": [
+        "world_units",
+        "z_up",
+        "npz_axes_before_world_translation",
+        "world_x_m",
+        "world_y_m",
+        "world_z_m",
+        "recommended_spawn"
+      ],
       "properties": {
         "world_units": {"const": "metre-radian-kilogram-second"},
         "z_up": {"const": true},
-        "recommended_spawn": {"type": "object"}
+        "npz_axes_before_world_translation": {"const": true},
+        "world_x_m": {"const": "x_m - recommended_spawn.x_before_translation_m"},
+        "world_y_m": {"const": "y_m - recommended_spawn.y_before_translation_m"},
+        "world_z_m": {"const": "height_m - recommended_spawn.terrain_height_m"},
+        "recommended_spawn": {
+          "type": "object",
+          "required": ["x_before_translation_m", "y_before_translation_m", "terrain_height_m"],
+          "properties": {
+            "x_before_translation_m": {"type": "number"},
+            "y_before_translation_m": {"type": "number"},
+            "terrain_height_m": {"type": "number"}
+          },
+          "additionalProperties": true
+        }
       },
       "additionalProperties": true
     },
+    "heightfield_precision": {
+      "description": "Physics must replace the PNG bootstrap with the float samples before validated use.",
+      "type": "object",
+      "required": [
+        "float_npz_injection_required_before_validated_physics",
+        "float_samples_file",
+        "rows_y",
+        "columns_x"
+      ],
+      "properties": {
+        "float_npz_injection_required_before_validated_physics": {"const": true},
+        "float_samples_file": {"type": "string", "minLength": 1},
+        "rows_y": {"type": "integer", "minimum": 2},
+        "columns_x": {"type": "integer", "minimum": 2}
+      },
+      "additionalProperties": true
+    },
+    "dimensions": {
+      "description": "Official core size and CAD assembly bounds; a perimeter fence is derived from them.",
+      "type": "object"
+    },
+    "portability": {"type": "object"},
+    "excluded": {"type": "object"},
     "contents": {
       "type": "object",
-      "required": ["entrypoint", "files"],
+      "required": ["entrypoint", "files", "file_count_excluding_manifest", "visual_obj_count"],
       "properties": {
         "entrypoint": {"const": "rmuc2026_field.xml"},
-        "files": {"type": "array", "minItems": 4}
+        "file_count_excluding_manifest": {"type": "integer", "minimum": 1},
+        "visual_obj_count": {"type": "integer", "minimum": 1},
+        "files": {
+          "description": "Every file of the pack except manifest.json. Roles include field_mjcf_full, field_mjcf_collision_only, field_mjcf_interactive_lite, field_mjcf_pro, cad_visual_mesh, cad_visual_mesh_lite, cad_visual_mesh_pro, surface_guide_visual_mesh, official_rulebook_surface_texture, heightfield_bootstrap_png, heightfield_float_samples, heightfield_edge_void_mask, source_contact_mesh and tunnel_roof_mesh.",
+          "type": "array",
+          "minItems": 4,
+          "items": {
+            "type": "object",
+            "required": ["file", "sha256", "size_bytes", "role"],
+            "properties": {
+              "file": {"type": "string", "minLength": 1},
+              "sha256": {"$ref": "#/$defs/sha256"},
+              "size_bytes": {"type": "integer", "minimum": 0},
+              "role": {"type": "string", "minLength": 1}
+            },
+            "additionalProperties": true
+          }
+        }
       },
       "additionalProperties": true
     },
     "runtime_profiles": {
+      "description": "Absent only in packs made before 0.1.0, which are full-only.",
       "type": "object",
       "required": ["default", "profiles"],
       "properties": {
         "default": {"const": "full"},
         "profiles": {
+          "description": "full and collision_only always; interactive_lite with visual_lite and pro with visual_pro.",
           "type": "object",
           "required": ["full", "collision_only"],
           "properties": {
+            "pro": {
+              "$ref": "#/$defs/runtimeProfile",
+              "properties": {
+                "entrypoint": {"const": "rmuc2026_field_pro.xml"},
+                "includes_visual_meshes": {"const": true},
+                "visual_mesh_count": {"type": "integer", "minimum": 1},
+                "intended_use": {"const": "maximum_fidelity_visualization"}
+              }
+            },
             "full": {
-              "type": "object",
-              "required": [
-                "entrypoint",
-                "includes_visual_meshes",
-                "visual_mesh_count",
-                "intended_use"
-              ],
+              "$ref": "#/$defs/runtimeProfile",
               "properties": {
                 "entrypoint": {"const": "rmuc2026_field.xml"},
                 "includes_visual_meshes": {"const": true},
                 "visual_mesh_count": {"type": "integer", "minimum": 1},
                 "intended_use": {"const": "interactive_visualization"}
-              },
-              "additionalProperties": false
+              }
+            },
+            "interactive_lite": {
+              "$ref": "#/$defs/runtimeProfile",
+              "properties": {
+                "entrypoint": {"const": "rmuc2026_field_interactive_lite.xml"},
+                "includes_visual_meshes": {"const": true},
+                "visual_mesh_count": {"type": "integer", "minimum": 1},
+                "intended_use": {"const": "interactive_visualization_lite"}
+              }
             },
             "collision_only": {
-              "type": "object",
-              "required": [
-                "entrypoint",
-                "includes_visual_meshes",
-                "visual_mesh_count",
-                "intended_use"
-              ],
+              "$ref": "#/$defs/runtimeProfile",
               "properties": {
                 "entrypoint": {"const": "rmuc2026_field_collision_only.xml"},
                 "includes_visual_meshes": {"const": false},
                 "visual_mesh_count": {"const": 0},
                 "intended_use": {"const": "headless_physics"}
-              },
-              "additionalProperties": false
+              }
             }
           },
           "additionalProperties": false
@@ -430,8 +772,9 @@
   },
   "allOf": [
     {
-      "if": {"properties": {"schema_version": {"const": 2}}},
-      "then": {
+      "if": {"properties": {"schema_version": {"const": 1}}},
+      "then": {"not": {"required": ["visual_layers"]}},
+      "else": {
         "required": ["visual_display", "visual_layers"],
         "properties": {
           "visual_display": {
@@ -442,10 +785,101 @@
               "physics_changed",
               "lighting"
             ]
+          },
+          "visual_meshes": {"items": {"required": ["display_rgba"]}}
+        }
+      }
+    },
+    {
+      "if": {"properties": {"schema_version": {"const": 3}}},
+      "then": {"properties": {"collision": {"required": ["edge_void_provenance"]}}}
+    },
+    {
+      "if": {
+        "anyOf": [
+          {"required": ["visual_lite"]},
+          {"required": ["visual_pro"]},
+          {"properties": {"collision": {"required": ["source_contact_layer"]}}}
+        ]
+      },
+      "then": {"properties": {"schema_version": {"const": 4}}}
+    },
+    {
+      "if": {"required": ["visual_lite"]},
+      "then": {
+        "properties": {
+          "runtime_profiles": {"properties": {"profiles": {"required": ["interactive_lite"]}}}
+        }
+      },
+      "else": {
+        "properties": {
+          "runtime_profiles": {
+            "properties": {"profiles": {"not": {"required": ["interactive_lite"]}}}
           }
+        }
+      }
+    },
+    {
+      "if": {"required": ["visual_pro"]},
+      "then": {
+        "properties": {"runtime_profiles": {"properties": {"profiles": {"required": ["pro"]}}}}
+      },
+      "else": {
+        "properties": {
+          "runtime_profiles": {"properties": {"profiles": {"not": {"required": ["pro"]}}}}
         }
       }
     }
   ],
+  "$defs": {
+    "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "rgba": {
+      "type": "array",
+      "minItems": 4,
+      "maxItems": 4,
+      "items": {"type": "number", "minimum": 0, "maximum": 1}
+    },
+    "pair": {"type": "array", "minItems": 2, "maxItems": 2, "items": {"type": "number"}},
+    "xyz": {"type": "array", "minItems": 3, "maxItems": 3, "items": {"type": "number"}},
+    "meshPiece": {
+      "type": "object",
+      "required": ["file", "sha256", "faces"],
+      "properties": {
+        "file": {"type": "string", "pattern": "\\.obj$"},
+        "sha256": {"$ref": "#/$defs/sha256"},
+        "faces": {"type": "integer", "minimum": 1}
+      },
+      "additionalProperties": false
+    },
+    "contactMesh": {
+      "type": "object",
+      "required": [
+        "name", "file", "sha256", "source_part_index", "contype", "conaffinity", "friction",
+        "solref"
+      ],
+      "properties": {
+        "name": {"type": "string", "minLength": 1},
+        "file": {"type": "string", "pattern": "^collision/.+\\.obj$"},
+        "sha256": {"$ref": "#/$defs/sha256"},
+        "source_part_index": {"type": "integer", "minimum": 0},
+        "contype": {"const": 2},
+        "conaffinity": {"const": 1},
+        "friction": {"const": [1.0, 0.005, 0.0001]},
+        "solref": {"const": [0.005, 1.0]}
+      },
+      "additionalProperties": false
+    },
+    "runtimeProfile": {
+      "type": "object",
+      "required": ["entrypoint", "includes_visual_meshes", "visual_mesh_count", "intended_use"],
+      "properties": {
+        "entrypoint": true,
+        "includes_visual_meshes": true,
+        "visual_mesh_count": true,
+        "intended_use": true
+      },
+      "additionalProperties": false
+    }
+  },
   "additionalProperties": true
 }
