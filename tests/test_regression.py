@@ -1,3 +1,4 @@
+from concurrent.futures import ThreadPoolExecutor
 import json
 
 import pytest
@@ -94,3 +95,155 @@ def test_check_cli_exposes_robot_outcomes_and_failure_exit_code(tmp_path, monkey
     assert received["profiles"] == ["collision_only"]
     assert received["speeds"] == [0.5]
     assert '"robot_task_outcomes"' in capsys.readouterr().out
+
+
+def _fake_sections(monkeypatch, failing_profile=None):
+    """Deterministic sections that record the routes they were handed."""
+
+    seen = {}
+
+    def section(name, asset, source_manifest, profiles, speeds, earlier):
+        inputs = {key: value.get("catalog") for key, value in earlier.items()}
+        seen.setdefault(name, []).append((inputs, tuple(profiles)))
+        if name == "example_robots":
+            return regression.check_example_episodes(
+                asset, profiles, *regression._example_inputs(earlier)
+            )
+        if name == "corners":
+            trials = [
+                dict(
+                    route_id="corner",
+                    speed_m_s=speed,
+                    profile=profile,
+                    steps=3,
+                    state_contact_sha256="x",
+                    status="PASS",
+                )
+                for profile in profiles
+                for speed in speeds
+            ]
+            return regression.corner_result({"routes": [1, 2, 3, 4], **inputs}, profiles, trials)
+        return {"status": "PASS", "catalog": f"{name} routes", "ordinary_patches": []}
+
+    def rows(asset, profile, *inputs):
+        if profile == failing_profile:
+            raise RuntimeError(f"{profile} crashed")
+        return [
+            dict(
+                case_id="route",
+                profile=profile,
+                steps=3,
+                state_contact_sha256="x",
+                status="PASS",
+                task_outcome="COMPLETE",
+            )
+        ]
+
+    monkeypatch.setattr(regression, "_run_section", section)
+    monkeypatch.setattr(regression, "_example_rows", rows)
+    return seen
+
+
+def _without_timings(report):
+    return {
+        **report,
+        "sections": {
+            name: {key: value for key, value in section.items() if key != "elapsed_s"}
+            for name, section in report["sections"].items()
+        },
+    }
+
+
+def test_parallel_sections_report_what_a_sequential_run_reports(
+    field_asset_dir, tmp_path, monkeypatch
+):
+    seen = _fake_sections(monkeypatch)
+    sequential = regression.run_regression(field_asset_dir, "source.json", output=tmp_path / "a")
+    sequential_inputs = dict(seen)
+    seen.clear()
+
+    parallel = regression.run_regression(
+        field_asset_dir,
+        "source.json",
+        output=tmp_path / "b",
+        jobs=4,
+        executor=ThreadPoolExecutor(max_workers=4),
+    )
+
+    assert _without_timings(parallel) == _without_timings(sequential)
+    assert list(parallel["sections"]) == list(regression.SECTION_ORDER)
+    profiles = tuple(parallel["profiles"])
+    assert sequential_inputs["corners"] == [({"perimeter": "perimeter routes"}, profiles)]
+    # Corners and example robots ran once per profile and merged in profile order.
+    for name in regression.PROFILE_SECTIONS:
+        [(inputs, _profiles)] = sequential_inputs[name]
+        assert sorted(run[1] for run in seen[name]) == sorted((profile,) for profile in profiles)
+        assert all(run[0] == inputs for run in seen[name])
+    trials = parallel["sections"]["example_robots"]["trials"]
+    assert [row["profile"] for row in trials] == list(profiles)
+    corners = parallel["sections"]["corners"]
+    assert [row["profile"] for row in corners["trials"]] == [p for p in profiles for _ in range(3)]
+    assert len(corners["profile_parity"]) == 3 * (len(profiles) - 1)
+    assert json.loads((tmp_path / "b").read_text()) == parallel
+
+
+def test_a_failing_example_profile_fails_only_the_example_section(
+    field_asset_dir, tmp_path, monkeypatch
+):
+    _fake_sections(monkeypatch, failing_profile="collision_only")
+
+    report = regression.run_regression(
+        field_asset_dir,
+        "source.json",
+        output=tmp_path / "r",
+        jobs=2,
+        executor=ThreadPoolExecutor(max_workers=2),
+    )
+
+    assert report["failed_sections"] == ["example_robots"]
+    assert report["sections"]["example_robots"]["error"] == "RuntimeError: collision_only crashed"
+
+
+def test_every_section_without_inputs_starts_first_in_parallel(field_asset_dir, tmp_path):
+    independent = set(regression.SECTION_ORDER) - set(regression.SECTION_INPUTS)
+    assert set(regression.PARALLEL_START_ORDER) == independent
+    assert len(regression.PARALLEL_START_ORDER) == len(independent)
+    with pytest.raises(ValueError, match="jobs"):
+        regression.run_regression(field_asset_dir, "source.json", output=tmp_path / "r", jobs=0)
+
+
+def test_profile_parts_merge_as_one_run_over_every_profile():
+    def part(profile, digest="x", routes=(1, 2, 3, 4)):
+        trial = dict(
+            route_id="corner",
+            speed_m_s=0.5,
+            profile=profile,
+            steps=3,
+            state_contact_sha256=digest,
+            status="PASS",
+        )
+        return regression.corner_result({"routes": list(routes)}, (profile,), [trial])
+
+    merged = regression._merge_profiles(
+        "corners", ("full", "pro"), [part("full"), part("pro", "y")]
+    )
+    assert merged["status"] == "FAIL"
+    assert merged["profile_parity"] == [
+        dict(route_id="corner", speed_m_s=0.5, profile="pro", status="FAIL")
+    ]
+    error = dict(status="ERROR", error="RuntimeError: pro crashed")
+    assert regression._merge_profiles("corners", ("full", "pro"), [part("full"), error]) == error
+    with pytest.raises(ValueError, match="different corner catalogs"):
+        regression._merge_profiles(
+            "corners", ("full", "pro"), [part("full"), part("pro", routes=[1])]
+        )
+
+
+def test_default_jobs_follow_the_cpu_count_and_available_memory(tmp_path, monkeypatch):
+    monkeypatch.setattr(regression.os, "cpu_count", lambda: 16)
+    meminfo = tmp_path / "meminfo"
+    meminfo.write_text("MemTotal: 16000000 kB\nMemAvailable: 6000000 kB\n")
+    assert regression.default_jobs(meminfo) == 2
+    assert regression.default_jobs(tmp_path / "missing") == 8
+    meminfo.write_text("MemAvailable: 100 kB\n")
+    assert regression.default_jobs(meminfo) == 1

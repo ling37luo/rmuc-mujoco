@@ -1239,3 +1239,82 @@ def test_a_stand_in_for_a_missing_material_blocks_export(tmp_path: Path, monkeyp
 
     with pytest.raises(ExportBlocked, match="not_in_this_build"):
         export_runtime_asset_pack(source, tmp_path / "pack")
+
+
+def _obj_triangles(text: str) -> list[tuple[object, ...]]:
+    from test_mesh_chunks import triangles
+
+    return triangles(text)
+
+
+def _rebind(pack: Path, relative: str, text: str) -> None:
+    """Rewrite a pack file and keep its manifest hash in step."""
+
+    (pack / relative).write_text(text, encoding="utf-8")
+    manifest_path = pack / "manifest.json"
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    for record in manifest["contents"]["files"]:
+        if record["file"] == relative:
+            record["sha256"] = _sha(pack / relative)
+            record["size_bytes"] = (pack / relative).stat().st_size
+    manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+
+
+def test_a_large_livery_is_split_into_chunks_with_its_triangles(
+    tmp_path: Path, monkeypatch
+) -> None:
+    from rmuc_mujoco.display import FieldDisplayController
+    from rmuc_mujoco.pack import SURFACE_GUIDE_GEOM_GROUP, SURFACE_GUIDE_MESH_FILE
+
+    source = _synthetic_source_build(tmp_path / "source", include_surface_guide=True)
+    export_runtime_asset_pack(source, tmp_path / "whole", include_surface_guide=True)
+    whole_text = (tmp_path / "whole" / SURFACE_GUIDE_MESH_FILE).read_text(encoding="ascii")
+    faces = sum(line.startswith("f ") for line in whole_text.splitlines())
+    monkeypatch.setattr(pack_module, "SURFACE_GUIDE_CHUNK_FACES", faces // 3 + 1)
+
+    export_runtime_asset_pack(source, tmp_path / "split", include_surface_guide=True)
+
+    asset = FieldAsset.open(tmp_path / "split", verify=True)
+    whole_asset = FieldAsset.open(tmp_path / "whole", verify=True)
+    chunks = asset.manifest["visual_layers"]["livery"]["mesh_chunks"]
+    # Median halving: four compact pieces, the guide and three chunks.
+    assert len(chunks) == 3
+    assert "mesh_chunks" not in whole_asset.manifest["visual_layers"]["livery"]
+    texts = [(tmp_path / "split" / SURFACE_GUIDE_MESH_FILE).read_text(encoding="ascii")]
+    texts += [(tmp_path / "split" / chunk["file"]).read_text(encoding="ascii") for chunk in chunks]
+    split = [face for text in texts for face in _obj_triangles(text)]
+    assert sorted(split) == sorted(_obj_triangles(whole_text))
+    collision_only = "rmuc2026_field_collision_only.xml"
+    assert (tmp_path / "split" / collision_only).read_bytes() == (
+        tmp_path / "whole" / collision_only
+    ).read_bytes()
+    # G shows and hides every chunk together.
+    model = mujoco.MjModel.from_xml_path(str(asset.entrypoint_for("full")))
+    option = mujoco.MjvOption()
+    FieldDisplayController(asset, livery="on").apply(model, option.geomgroup)
+    assert option.geomgroup[SURFACE_GUIDE_GEOM_GROUP] == 1
+    group = [
+        mujoco.mj_id2name(model, mujoco.mjtObj.mjOBJ_GEOM, index)
+        for index in range(model.ngeom)
+        if model.geom_group[index] == SURFACE_GUIDE_GEOM_GROUP
+    ]
+    assert group == ["rmuc2026_surface_guide"] + [
+        f"rmuc2026_surface_guide__chunk{index}" for index in range(1, 4)
+    ]
+    whole = mujoco.MjModel.from_xml_path(str(whole_asset.entrypoint_for("full")))
+    assert model.nmeshface == whole.nmeshface
+
+
+def test_a_livery_chunk_unlike_the_guide_is_refused(tmp_path: Path, monkeypatch) -> None:
+    monkeypatch.setattr(pack_module, "SURFACE_GUIDE_CHUNK_FACES", 100)
+    source = _synthetic_source_build(tmp_path / "source", include_surface_guide=True)
+    output = tmp_path / "pack"
+    export_runtime_asset_pack(source, output, include_surface_guide=True)
+    text = (output / "rmuc2026_field.xml").read_text(encoding="utf-8")
+    old = 'name="rmuc2026_surface_guide__chunk1"'
+    assert text.count(old) == 1
+
+    _rebind(output, "rmuc2026_field.xml", text.replace(old, old + ' rgba="1 0 0 1"'))
+
+    with pytest.raises(ManifestError, match="livery chunk 1"):
+        FieldAsset.open(output, verify=True)

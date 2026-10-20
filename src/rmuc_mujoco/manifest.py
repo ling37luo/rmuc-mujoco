@@ -187,6 +187,8 @@ class _RuntimeLiveryContract:
 
     mesh_relative: str
     texture_relative: str
+    # A split livery's further chunk files, in order.
+    chunk_relatives: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -704,7 +706,7 @@ def _validate_visual_layers(
     if kind == SURFACE_GUIDE_KIND:
         legacy_keys = common_keys | {"contains_baked_scene_content"}
         processed_keys = legacy_keys | {"source_texture_sha256", "edge_processing"}
-        if set(livery) not in (legacy_keys, processed_keys):
+        if set(livery) not in (legacy_keys, processed_keys, processed_keys | {"mesh_chunks"}):
             raise ManifestError("visual_layers.livery contains unsupported or missing fields")
         if livery.get("contains_baked_scene_content") != list(SURFACE_GUIDE_BAKED_CONTENT):
             raise ManifestError("visual_layers.livery does not match the full-guide contract")
@@ -783,9 +785,31 @@ def _validate_visual_layers(
         raise ManifestError("visual_layers.livery.mesh_file has the wrong file role")
     if roles.get(texture_relative) != texture_role:
         raise ManifestError("visual_layers.livery.texture_file has the wrong file role")
+    chunk_values = livery.get("mesh_chunks", [])
+    if not isinstance(chunk_values, list) or ("mesh_chunks" in livery and not chunk_values):
+        raise ManifestError("visual_layers.livery.mesh_chunks must list the further chunks")
+    chunk_relatives: list[str] = []
+    for number, chunk_value in enumerate(chunk_values):
+        label = f"visual_layers.livery.mesh_chunks[{number}]"
+        chunk = _mapping(chunk_value, label=label)
+        if set(chunk) != {"file", "sha256", "faces"}:
+            raise ManifestError(f"{label} contains unsupported or missing fields")
+        relative = _nonempty_string(chunk.get("file"), label=f"{label}.file")
+        digest = _sha256(chunk.get("sha256"), label=f"{label}.sha256")
+        _require_cross_file(files, manifest, relative, digest, label=label)
+        _integer(chunk.get("faces"), label=f"{label}.faces", minimum=1)
+        if (
+            Path(relative).suffix.lower() != ".obj"
+            or roles.get(relative) != "surface_guide_visual_mesh"
+            or relative == mesh_relative
+            or relative in chunk_relatives
+        ):
+            raise ManifestError(f"{label} is not a distinct livery OBJ")
+        chunk_relatives.append(relative)
     return _RuntimeLiveryContract(
         mesh_relative=mesh_relative,
         texture_relative=texture_relative,
+        chunk_relatives=tuple(chunk_relatives),
     )
 
 
@@ -1595,6 +1619,10 @@ def _validate_runtime_profiles(
         rows = manifest[key]["meshes"]
         if name == "pro":
             _fold_pro_chunks(profile_xml, rows)
+            statistic = profile_xml.find("./statistic")
+            if statistic is not None and full_xml.find("./statistic") is None:
+                _validate_pro_statistic(statistic)
+                profile_xml.remove(statistic)
             replacements = {row["chunks"][0]["file"]: row["source_file"] for row in rows}
         else:
             replacements = {row["file"]: row["source_file"] for row in rows}
@@ -1604,6 +1632,22 @@ def _validate_runtime_profiles(
                 mesh.set("file", replacements[current])
         if _semantic_xml(full_xml) != _semantic_xml(profile_xml):
             raise ManifestError(f"{name} changes MJCF beyond visual mesh files")
+
+
+def _validate_pro_statistic(statistic: ET.Element) -> None:
+    """pro may state the scene centre and extent, which only place rendering."""
+
+    if set(statistic.attrib) != {"center", "extent"}:
+        raise ManifestError("pro statistic may state only center and extent")
+    try:
+        center = [float(value) for value in str(statistic.get("center")).split()]
+        extent = float(str(statistic.get("extent")))
+    except ValueError as exc:
+        raise ManifestError("pro statistic is not numeric") from exc
+    if len(center) != 3 or not all(math.isfinite(value) for value in (*center, extent)):
+        raise ManifestError("pro statistic must hold a finite centre and extent")
+    if extent <= 0.0:
+        raise ManifestError("pro statistic extent must be positive")
 
 
 def _fold_pro_chunks(root: ET.Element, rows: list[Any]) -> None:
@@ -1700,7 +1744,9 @@ def _validate_runtime_profile_xml(
 
     mesh_assets = root.findall("./asset/mesh")
     mesh_geoms = [geom for geom in root.iter("geom") if geom.get("mesh")]
-    livery_mesh_count = 1 if livery_contract is not None else 0
+    livery_mesh_count = (
+        1 + len(livery_contract.chunk_relatives) if livery_contract is not None else 0
+    )
     expected_total_mesh_count = (
         expected_visual_mesh_count + livery_mesh_count + len(source_contact_meshes)
     )
@@ -1717,7 +1763,11 @@ def _validate_runtime_profile_xml(
     mesh_files = tuple(mesh.get("file") for mesh in mesh_assets)
     expected_mesh_files = (
         *expected_visual_mesh_files,
-        *((livery_contract.mesh_relative,) if livery_contract is not None else ()),
+        *(
+            (livery_contract.mesh_relative, *livery_contract.chunk_relatives)
+            if livery_contract is not None
+            else ()
+        ),
         *(str(record["file"]) for record in source_contact_meshes),
     )
     if None in mesh_files or sorted(mesh_files) != sorted(expected_mesh_files):
@@ -1833,6 +1883,28 @@ def _validate_runtime_profile_xml(
         ]
         if len(materials) != 1 or livery_geom.get("material") != materials[0].get("name"):
             raise ManifestError(f"runtime profile {profile!r} livery material is inconsistent")
+        # Each further chunk copies the guide's mesh asset and geom but for names.
+        for number, relative in enumerate(livery_contract.chunk_relatives, start=1):
+            chunk_mesh_name = f"{livery_mesh_name}__chunk{number}"
+            chunk_meshes = [mesh for mesh in mesh_assets if mesh.get("file") == relative]
+            chunk_geoms = worldbody.findall(
+                f"./geom[@name='{SURFACE_GUIDE_GEOM_NAME}__chunk{number}']"
+            )
+            if (
+                len(chunk_meshes) != 1
+                or chunk_meshes[0].attrib
+                != {**livery_meshes[0].attrib, "name": chunk_mesh_name, "file": relative}
+                or len(chunk_geoms) != 1
+                or chunk_geoms[0].attrib
+                != {
+                    **livery_geom.attrib,
+                    "name": f"{SURFACE_GUIDE_GEOM_NAME}__chunk{number}",
+                    "mesh": chunk_mesh_name,
+                }
+            ):
+                raise ManifestError(
+                    f"runtime profile {profile!r} livery chunk {number} is not a copy of the guide"
+                )
     hfields = [
         item for item in root.findall("./asset/hfield") if item.get("name") == "rmuc2026_collision"
     ]

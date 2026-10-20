@@ -110,6 +110,9 @@ def test_pro_swaps_only_the_cad_mesh_files(tmp_path: Path, full_pack) -> None:
     model = mujoco.MjModel.from_xml_path(str(asset.entrypoint_for("pro")))
     full = mujoco.MjModel.from_xml_path(str(asset.entrypoint_for("full")))
     assert (model.nmeshface, model.ngeom) == (full.nmeshface * 2, full.ngeom)
+    # pro renders with full's scene centre and extent.
+    assert model.stat.extent == pytest.approx(full.stat.extent, rel=1e-12)
+    assert model.stat.center == pytest.approx(full.stat.center, rel=1e-12)
 
 
 def test_large_groups_are_split_into_chunks_with_the_same_triangles(
@@ -136,7 +139,7 @@ def test_large_groups_are_split_into_chunks_with_the_same_triangles(
     split = []
     for chunk in row["chunks"]:
         split += _triangles((tmp_path / "pro" / chunk["file"]).read_text(encoding="utf-8"))
-    assert split == whole
+    assert sorted(split) == sorted(whole)
 
 
 def test_a_tampered_chunk_geom_is_refused(tmp_path: Path, full_pack, monkeypatch) -> None:
@@ -250,3 +253,25 @@ def test_the_pro_manifest_contract_fails_closed(tmp_path: Path, full_pack, mutat
 
     with pytest.raises(ManifestError, match=error):
         FieldAsset.open(tmp_path / "pro", verify=False)
+
+
+@pytest.mark.parametrize(
+    ("statistic", "error"),
+    [
+        ('<statistic center="0 0 0" extent="5" meansize="1"/>', "only center and extent"),
+        ('<statistic center="0 0" extent="5"/>', "finite centre"),
+        ('<statistic center="0 0 0" extent="-1"/>', "positive"),
+    ],
+)
+def test_pro_statistic_states_only_a_centre_and_extent(
+    tmp_path: Path, full_pack, statistic: str, error: str
+) -> None:
+    source, pack = full_pack
+    export_pro_pack(_pro_build(tmp_path, source), pack, tmp_path / "pro")
+    text = (tmp_path / "pro" / PRO_XML).read_text(encoding="utf-8")
+    start = text.index("<statistic")
+    end = text.index("/>", start) + 2
+    _rewrite_bound_file(tmp_path / "pro", PRO_XML, text[:start] + statistic + text[end:])
+
+    with pytest.raises(ManifestError, match=error):
+        FieldAsset.open(tmp_path / "pro", verify=True)

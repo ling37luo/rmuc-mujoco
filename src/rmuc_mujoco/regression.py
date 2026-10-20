@@ -2,9 +2,13 @@
 
 from __future__ import annotations
 
+from concurrent.futures import FIRST_COMPLETED, ProcessPoolExecutor, wait
+from functools import partial
 import hashlib
 import json
 import math
+import multiprocessing
+import os
 from pathlib import Path
 import tempfile
 import time
@@ -13,7 +17,7 @@ import mujoco
 import numpy as np
 
 from .acceptance import _contact_sample, _run_route, _warning_counts
-from .corner_check import TraceDigest, run_corner_checks, solver_config
+from .corner_check import TraceDigest, corner_result, run_corner_checks, solver_config
 from .high_point_check import run_high_point_checks
 from .manifest import FieldAsset
 from .perimeter_check import run_perimeter_checks
@@ -233,94 +237,99 @@ def _session_episode(session, *, case_id, timeout_s):
     }
 
 
-def check_example_episodes(
-    asset, profiles, slopes, stair_catalog, high_point_catalog=None, tunnel_catalog=None
+def _example_rows(
+    asset, profile, slopes, stair_catalog, high_point_catalog=None, tunnel_catalog=None
 ):
-    rows = []
-    for profile in profiles:
-        if slopes:
-            session = SlopeSession(asset, mode="policy", profile=profile, record_trajectory=False)
-            for patch in slopes:
-                for direction in ("uphill", "downhill", "roundtrip"):
-                    session.reset(patch=patch["patch_id"], direction=direction, speed=0.5, seed=0)
-                    rows.append(
-                        _session_episode(
-                            session,
-                            case_id=f"slope/{patch['patch_id']}/{direction}",
-                            timeout_s=4 * patch["route"]["length_m"] / 0.5 + 5,
-                        )
-                    )
-            del session
-        if stair_catalog and stair_catalog["patches"]:
-            session = SlopeSession(
-                asset,
-                mode="policy",
-                profile=profile,
-                record_trajectory=False,
-                route_catalog=stair_catalog,
-            )
-            for patch in stair_catalog["patches"]:
-                for direction in ("uphill", "downhill"):
-                    session.reset(patch=patch["patch_id"], direction=direction, speed=0.3, seed=0)
-                    rows.append(
-                        _session_episode(
-                            session, case_id=f"stairs/{patch['patch_id']}/{direction}", timeout_s=10
-                        )
-                    )
-            del session
-        if high_point_catalog and high_point_catalog["patches"]:
-            session = SlopeSession(
-                asset,
-                mode="policy",
-                profile=profile,
-                record_trajectory=False,
-                route_catalog=high_point_catalog,
-            )
-            for patch in high_point_catalog["patches"]:
-                for direction in ("uphill", "downhill"):
-                    session.reset(patch=patch["patch_id"], direction=direction, speed=0.3, seed=0)
-                    rows.append(
-                        _session_episode(
-                            session,
-                            case_id=f"high_point/{patch['patch_id']}/{direction}",
-                            timeout_s=4 * patch["route"]["length_m"] / 0.3 + 5,
-                        )
-                    )
-            del session
-        # The four-wheel rover passes under the roofs; no included robot can
-        # cross over one, so only the through routes are driven.
-        through = [
-            patch
-            for patch in (tunnel_catalog or {}).get("patches", [])
-            if patch["route"]["tunnel_pass"] == "through"
-        ]
-        if through:
-            session = SlopeSession(
-                asset,
-                mode="policy",
-                profile=profile,
-                record_trajectory=False,
-                route_catalog=tunnel_catalog,
-            )
-            for patch in through:
-                for direction in ("uphill", "downhill"):
-                    session.reset(patch=patch["patch_id"], direction=direction, speed=0.3, seed=0)
-                    rows.append(
-                        _session_episode(
-                            session,
-                            case_id=f"tunnel/{patch['patch_id']}/{direction}",
-                            timeout_s=4 * patch["route"]["length_m"] / 0.3 + 5,
-                        )
-                    )
-            del session
-        if _fly_ramp_scenarios(asset):
-            from .seasons.rmuc2026.fly_runtime import FlyRampSession
+    """The included example robots' episodes on one profile."""
 
-            session = FlyRampSession(asset, profile=profile, speed_mps=2.0, record_trajectory=False)
-            for scenario in _fly_ramp_scenarios(asset):
-                session.reset(scenario_id=scenario, speed_mps=2.0, seed=0)
-                rows.append(_session_episode(session, case_id=f"fly/{scenario}/2.0", timeout_s=8))
-            del session
+    rows = []
+    if slopes:
+        session = SlopeSession(asset, mode="policy", profile=profile, record_trajectory=False)
+        for patch in slopes:
+            for direction in ("uphill", "downhill", "roundtrip"):
+                session.reset(patch=patch["patch_id"], direction=direction, speed=0.5, seed=0)
+                rows.append(
+                    _session_episode(
+                        session,
+                        case_id=f"slope/{patch['patch_id']}/{direction}",
+                        timeout_s=4 * patch["route"]["length_m"] / 0.5 + 5,
+                    )
+                )
+        del session
+    if stair_catalog and stair_catalog["patches"]:
+        session = SlopeSession(
+            asset,
+            mode="policy",
+            profile=profile,
+            record_trajectory=False,
+            route_catalog=stair_catalog,
+        )
+        for patch in stair_catalog["patches"]:
+            for direction in ("uphill", "downhill"):
+                session.reset(patch=patch["patch_id"], direction=direction, speed=0.3, seed=0)
+                rows.append(
+                    _session_episode(
+                        session, case_id=f"stairs/{patch['patch_id']}/{direction}", timeout_s=10
+                    )
+                )
+        del session
+    if high_point_catalog and high_point_catalog["patches"]:
+        session = SlopeSession(
+            asset,
+            mode="policy",
+            profile=profile,
+            record_trajectory=False,
+            route_catalog=high_point_catalog,
+        )
+        for patch in high_point_catalog["patches"]:
+            for direction in ("uphill", "downhill"):
+                session.reset(patch=patch["patch_id"], direction=direction, speed=0.3, seed=0)
+                rows.append(
+                    _session_episode(
+                        session,
+                        case_id=f"high_point/{patch['patch_id']}/{direction}",
+                        timeout_s=4 * patch["route"]["length_m"] / 0.3 + 5,
+                    )
+                )
+        del session
+    # The four-wheel rover passes under the roofs; no included robot can
+    # cross over one, so only the through routes are driven.
+    through = [
+        patch
+        for patch in (tunnel_catalog or {}).get("patches", [])
+        if patch["route"]["tunnel_pass"] == "through"
+    ]
+    if through:
+        session = SlopeSession(
+            asset,
+            mode="policy",
+            profile=profile,
+            record_trajectory=False,
+            route_catalog=tunnel_catalog,
+        )
+        for patch in through:
+            for direction in ("uphill", "downhill"):
+                session.reset(patch=patch["patch_id"], direction=direction, speed=0.3, seed=0)
+                rows.append(
+                    _session_episode(
+                        session,
+                        case_id=f"tunnel/{patch['patch_id']}/{direction}",
+                        timeout_s=4 * patch["route"]["length_m"] / 0.3 + 5,
+                    )
+                )
+        del session
+    if _fly_ramp_scenarios(asset):
+        from .seasons.rmuc2026.fly_runtime import FlyRampSession
+
+        session = FlyRampSession(asset, profile=profile, speed_mps=2.0, record_trajectory=False)
+        for scenario in _fly_ramp_scenarios(asset):
+            session.reset(scenario_id=scenario, speed_mps=2.0, seed=0)
+            rows.append(_session_episode(session, case_id=f"fly/{scenario}/2.0", timeout_s=8))
+        del session
+    return rows
+
+
+def _example_result(rows):
     parity = _parity(rows)
     return dict(
         status="PASS" if rows and all(r["status"] == "PASS" for r in rows + parity) else "FAIL",
@@ -336,6 +345,17 @@ def check_example_episodes(
     )
 
 
+def check_example_episodes(
+    asset, profiles, slopes, stair_catalog, high_point_catalog=None, tunnel_catalog=None
+):
+    rows = []
+    for profile in profiles:
+        rows += _example_rows(
+            asset, profile, slopes, stair_catalog, high_point_catalog, tunnel_catalog
+        )
+    return _example_result(rows)
+
+
 def summarize_sections(sections):
     if not sections:
         raise ValueError("no regression sections were run")
@@ -349,13 +369,221 @@ def summarize_sections(sections):
     )
 
 
+# Report order; a section waits for the sections whose routes it takes.
+SECTION_ORDER = (
+    "interfaces",
+    "slope_fly_contacts",
+    "stairs",
+    "perimeter",
+    "corners",
+    "walls",
+    "high_points",
+    "tunnels",
+    "example_robots",
+)
+SECTION_INPUTS = {
+    "corners": ("perimeter",),
+    "example_robots": ("slope_fly_contacts", "stairs", "high_points", "tunnels"),
+}
+# In parallel runs the sections that unlock others or run longest start first.
+PARALLEL_START_ORDER = (
+    "perimeter",
+    "tunnels",
+    "walls",
+    "high_points",
+    "slope_fly_contacts",
+    "stairs",
+    "interfaces",
+)
+# In parallel runs these run one process per profile; the parts merge into
+# what one run over every profile reports.
+PROFILE_SECTIONS = ("corners", "example_robots")
+# Eight RMUC 2027 check workers held about 2.1 GB each, at most 3.9 GB.
+WORKER_MEMORY_BYTES = 5 * 1024**3 // 2
+
+
+def default_jobs(meminfo=Path("/proc/meminfo")):
+    """Workers the CPU count allows, at most 8, and on Linux the available memory."""
+
+    jobs = min(8, os.cpu_count() or 1)
+    try:
+        with open(meminfo, encoding="ascii") as stream:
+            available = next(
+                int(line.split()[1]) * 1024 for line in stream if line.startswith("MemAvailable:")
+            )
+    except (OSError, StopIteration, ValueError):
+        return jobs
+    return max(1, min(jobs, available // WORKER_MEMORY_BYTES))
+
+
+def _absent(reason):
+    return dict(status="NOT_AVAILABLE", reason=reason)
+
+
+def _example_inputs(earlier):
+    return (
+        earlier["slope_fly_contacts"].get("ordinary_patches", []),
+        earlier["stairs"].get("catalog"),
+        earlier["high_points"].get("catalog"),
+        earlier["tunnels"].get("catalog"),
+    )
+
+
+def _run_section(name, asset, source_manifest, profiles, speeds, earlier):
+    """Run one check section; ``earlier`` maps the sections it takes routes from."""
+
+    if name == "interfaces":
+        return check_public_interfaces(asset, profiles)
+    if name == "slope_fly_contacts":
+        return check_surface_routes(asset, profiles, speeds)
+    if name == "stairs":
+        if not asset.field_source.stair_parts:
+            return _absent("source release has no reviewed stair parts")
+        return run_stair_checks(asset, source_manifest, speeds=speeds)
+    if name in ("perimeter", "corners") and not asset.manifest.get("perimeter_fence"):
+        return _absent("pack has no perimeter fence")
+    if name == "perimeter":
+        return run_perimeter_checks(asset, source_manifest, profiles=profiles, speeds=speeds)
+    if name == "corners":
+        return run_corner_checks(
+            asset,
+            source_manifest,
+            profiles=profiles,
+            speeds=speeds,
+            perimeter_catalog=earlier["perimeter"].get("catalog"),
+        )
+    if name == "walls":
+        if not asset.collision.get("source_contact_layer"):
+            return _absent("pack has no source wall layer")
+        return run_wall_checks(asset, source_manifest, profiles=profiles, speeds=speeds)
+    if name == "high_points":
+        if not asset.season.has(HIGH_POINTS):
+            return _absent("season has no high points")
+        return run_high_point_checks(asset, source_manifest=source_manifest, profiles=profiles)
+    if name == "tunnels":
+        if not asset.collision.get("tunnel_contact_layer"):
+            return _absent("pack has no tunnel layer")
+        return run_tunnel_checks(asset, profiles=profiles)
+    if name == "example_robots":
+        return check_example_episodes(asset, profiles, *_example_inputs(earlier))
+    raise ValueError(f"unknown check section: {name}")
+
+
+def _timed(run):
+    start = time.perf_counter()
+    try:
+        value = run()
+    except Exception as exc:
+        value = dict(status="ERROR", error=f"{type(exc).__name__}: {exc}")
+    return value, time.perf_counter() - start
+
+
+def _section_job(name, pack, source_manifest, profiles, speeds, earlier):
+    """Run one section in a worker process; the parent verified the pack."""
+
+    asset = FieldAsset.open(pack, verify=False)
+    return _timed(partial(_run_section, name, asset, source_manifest, profiles, speeds, earlier))
+
+
+def _merge_profiles(name, profiles, parts):
+    """One section's report from its single-profile reports, in profile order."""
+
+    for part in parts:
+        if part["status"] in {"ERROR", "NOT_AVAILABLE"}:
+            return part
+    trials = [trial for part in parts for trial in part["trials"]]
+    if name == "example_robots":
+        return _example_result(trials)
+    if any(part["catalog"] != parts[0]["catalog"] for part in parts):
+        raise ValueError("profiles built different corner catalogs")
+    return corner_result(parts[0]["catalog"], profiles, trials)
+
+
+def _run_parallel(asset, source_manifest, profiles, speeds, jobs, record, progress, executor):
+    """Run the sections as their inputs become ready; some one profile per process.
+
+    Every section and profile runs exactly as in sequence, so the report only
+    differs in timings.
+    """
+
+    if executor is None:
+        executor = ProcessPoolExecutor(
+            max_workers=jobs, mp_context=multiprocessing.get_context("spawn")
+        )
+    pack = str(asset.root)
+    values, began, pending, parts = {}, {}, {}, {}
+
+    def start(name):
+        if progress:
+            progress(name, "RUNNING")
+        began[name] = time.perf_counter()
+        earlier = {key: values[key] for key in SECTION_INPUTS.get(name, ())}
+        if name not in PROFILE_SECTIONS:
+            job = executor.submit(
+                _section_job, name, pack, source_manifest, profiles, speeds, earlier
+            )
+            pending[job] = name
+            return
+        parts[name] = {}
+        for profile in profiles:
+            job = executor.submit(
+                _section_job, name, pack, source_manifest, (profile,), speeds, earlier
+            )
+            pending[job] = (name, profile)
+
+    def finish(name, value, elapsed):
+        values[name] = value
+        record(name, value, elapsed)
+
+    with executor:
+        for name in PARALLEL_START_ORDER:
+            start(name)
+        while pending:
+            done, _ = wait(pending, return_when=FIRST_COMPLETED)
+            for job in done:
+                key = pending.pop(job)
+                try:
+                    value, elapsed = job.result()
+                except Exception as exc:
+                    value, elapsed = dict(status="ERROR", error=f"{type(exc).__name__}: {exc}"), 0.0
+                if isinstance(key, str):
+                    finish(key, value, elapsed)
+                    continue
+                name, profile = key
+                parts[name][profile] = value
+                if len(parts[name]) == len(profiles):
+                    merged = _timed(
+                        partial(_merge_profiles, name, profiles, [parts[name][p] for p in profiles])
+                    )[0]
+                    finish(name, merged, time.perf_counter() - began[name])
+            for name, inputs in SECTION_INPUTS.items():
+                if name not in began and all(key in values for key in inputs):
+                    start(name)
+
+
 def run_regression(
-    pack, source_manifest, *, output, profiles=None, speeds=(0.3, 0.5, 1.0), progress=None
+    pack,
+    source_manifest,
+    *,
+    output,
+    profiles=None,
+    speeds=(0.3, 0.5, 1.0),
+    progress=None,
+    jobs=1,
+    executor=None,
 ):
-    """Generate routes and run checks; persist each section before continuing."""
+    """Generate routes and run checks; persist each section as it finishes.
+
+    With ``jobs`` above 1, sections run in separate processes as soon as the
+    routes they take are ready, and the corner approaches and example robots
+    run one profile per process.  Every trial still runs and the report equals a sequential run's
+    apart from timings.  ``executor`` replaces the process pool.
+    """
     target = Path(output).expanduser().resolve()
     if target.exists():
         raise ValueError(f"output already exists: {target}")
+    if isinstance(jobs, bool) or not isinstance(jobs, int) or jobs < 1:
+        raise ValueError("jobs must be a positive integer")
     asset = FieldAsset.open(pack, verify=True)
     selected = tuple(profiles) if profiles is not None else asset.available_runtime_profiles
     if not selected or len(set(selected)) != len(selected):
@@ -381,83 +609,27 @@ def run_regression(
         geometry_modified=False,
         sections={},
     )
+    results = {}
 
-    def stage(name, run):
-        if progress:
-            progress(name, "RUNNING")
-        start = time.perf_counter()
-        try:
-            value = run()
-        except Exception as exc:
-            value = dict(status="ERROR", error=f"{type(exc).__name__}: {exc}")
-        report["sections"][name] = {**value, "elapsed_s": time.perf_counter() - start}
+    def record(name, value, elapsed):
+        results[name] = {**value, "elapsed_s": elapsed}
+        report["sections"] = {key: results[key] for key in SECTION_ORDER if key in results}
         target.write_text(json.dumps(report, indent=2, allow_nan=False) + "\n")
         if progress:
             progress(name, value["status"])
-        return value
 
-    stage("interfaces", lambda: check_public_interfaces(asset, selected))
-    surfaces = stage("slope_fly_contacts", lambda: check_surface_routes(asset, selected, speeds))
-
-    def absent(reason):
-        return dict(status="NOT_AVAILABLE", reason=reason)
-
-    stairs = stage(
-        "stairs",
-        lambda: run_stair_checks(asset, source_manifest, speeds=speeds)
-        if asset.field_source.stair_parts
-        else absent("source release has no reviewed stair parts"),
-    )
-
-    perimeter = stage(
-        "perimeter",
-        lambda: run_perimeter_checks(asset, source_manifest, profiles=selected, speeds=speeds)
-        if asset.manifest.get("perimeter_fence")
-        else absent("pack has no perimeter fence"),
-    )
-    stage(
-        "corners",
-        lambda: run_corner_checks(
-            asset,
-            source_manifest,
-            profiles=selected,
-            speeds=speeds,
-            perimeter_catalog=perimeter.get("catalog"),
-        )
-        if asset.manifest.get("perimeter_fence")
-        else absent("pack has no perimeter fence"),
-    )
-    stage(
-        "walls",
-        lambda: run_wall_checks(asset, source_manifest, profiles=selected, speeds=speeds)
-        if asset.collision.get("source_contact_layer")
-        else absent("pack has no source wall layer"),
-    )
-    # The high points and tunnels publish their routes before the example
-    # robots drive them.
-    high_points = stage(
-        "high_points",
-        lambda: run_high_point_checks(asset, source_manifest=source_manifest, profiles=selected)
-        if asset.season.has(HIGH_POINTS)
-        else absent("season has no high points"),
-    )
-    tunnels = stage(
-        "tunnels",
-        lambda: run_tunnel_checks(asset, profiles=selected)
-        if asset.collision.get("tunnel_contact_layer")
-        else absent("pack has no tunnel layer"),
-    )
-    stage(
-        "example_robots",
-        lambda: check_example_episodes(
-            asset,
-            selected,
-            surfaces.get("ordinary_patches", []),
-            stairs.get("catalog"),
-            high_points.get("catalog"),
-            tunnels.get("catalog"),
-        ),
-    )
+    if jobs == 1 and executor is None:
+        values = {}
+        for name in SECTION_ORDER:
+            if progress:
+                progress(name, "RUNNING")
+            earlier = {key: values[key] for key in SECTION_INPUTS.get(name, ())}
+            values[name], elapsed = _timed(
+                partial(_run_section, name, asset, source_manifest, selected, speeds, earlier)
+            )
+            record(name, values[name], elapsed)
+    else:
+        _run_parallel(asset, source_manifest, selected, speeds, jobs, record, progress, executor)
     report.update(summarize_sections(report["sections"]))
     report["robot_task_outcomes"] = report["sections"]["example_robots"].get("summary")
     target.write_text(json.dumps(report, indent=2, allow_nan=False) + "\n")

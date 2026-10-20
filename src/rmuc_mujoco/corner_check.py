@@ -324,7 +324,7 @@ def run_corner_checks(
     if not speeds or any(not math.isfinite(s) or s <= 0 for s in speeds):
         raise ValueError("speeds must be positive and finite")
     catalog = build_corner_catalog(asset, source_manifest, perimeter_catalog)
-    trials, parity, reference = [], [], {}
+    trials = []
     with tempfile.TemporaryDirectory(prefix="rmuc-corner-check-") as directory:
         robot = Path(directory) / "rover.xml"
         robot.write_text(rover_xml())
@@ -332,22 +332,29 @@ def run_corner_checks(
             env = MuJoCoScenario(asset, robot, profile=profile)
             for route in catalog["routes"]:
                 for speed in speeds:
-                    result = drive_corner(env, route, speed)
-                    trials.append({**result, "profile": profile})
-                    key = (route["id"], speed)
-                    value = (result["steps"], result["state_contact_sha256"])
-                    if profile == selected[0]:
-                        reference[key] = value
-                    else:
-                        parity.append(
-                            dict(
-                                route_id=key[0],
-                                speed_m_s=speed,
-                                profile=profile,
-                                status="PASS" if value == reference[key] else "FAIL",
-                            )
-                        )
+                    trials.append({**drive_corner(env, route, speed), "profile": profile})
             del env
+    return corner_result(catalog, selected, trials)
+
+
+def corner_result(catalog, profiles, trials):
+    """The report for trials run in profile order; later profiles are compared with the first."""
+
+    parity, reference = [], {}
+    for trial in trials:
+        key = (trial["route_id"], trial["speed_m_s"])
+        value = (trial["steps"], trial["state_contact_sha256"])
+        if trial["profile"] == profiles[0]:
+            reference[key] = value
+        else:
+            parity.append(
+                dict(
+                    route_id=key[0],
+                    speed_m_s=key[1],
+                    profile=trial["profile"],
+                    status="PASS" if value == reference[key] else "FAIL",
+                )
+            )
     passed = len(catalog["routes"]) == 4 and all(r["status"] == "PASS" for r in trials + parity)
     return dict(
         status="PASS" if passed else "FAIL",

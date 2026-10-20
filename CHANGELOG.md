@@ -4,6 +4,27 @@ User-visible changes by release. Generated field packs and official assets are
 built locally and are not included in releases. Passing individual scenarios
 does not remove the full field's `DRAFT_BLOCKED` status.
 
+## [Unreleased]
+
+- The rulebook livery mesh is split into pieces of at most 150,000 faces, as
+  `pro` meshes already are: MuJoCo draws one large mesh far more slowly, and
+  with the livery on a full profile rendered at about 190 fps whole and 1,280
+  fps split. Vertices, texture coordinates and faces are unchanged. Pieces are
+  compact (the faces are halved at the median along their longest axis), so
+  the scene extent that sizes the shadow map stays as before. Packs exported
+  before keep one livery mesh and remain valid.
+- `pro-pack` splits groups into compact pieces as well and states full's scene
+  centre and extent in the pro profile: MuJoCo derives them from each geom's
+  bounding sphere, and pieces of groups with long triangles enlarged them
+  (RMUC 2026: 43.2 to 47.9 m), which coarsened the shadows.
+- `check` runs sections in parallel processes as soon as the routes they take
+  are ready, and the corner approaches and example robots one profile per
+  process (`--jobs`; default: the CPU count, at most 8, and on Linux one per
+  2.5 GB of available memory; `--jobs 1` runs in sequence). Every trial still
+  runs, and the report equals a sequential run's apart from timings. With 8
+  workers RMUC 2026 took 4 minutes instead of 20 and RMUC 2027 4 instead of
+  18, with about 17 GB of memory in use at peak.
+
 ## [2.1.0] - 2026-10-19
 
 - RMUC 2027 packs can carry the rulebook livery: `--include-surface-guide` now

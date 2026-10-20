@@ -255,7 +255,9 @@ def _strip_embedded_field_scene(robot_spec: Any) -> None:
     def field_geom(name: str) -> bool:
         return (
             name in {"rmuc2026_field_collision", "rmuc2026_surface_guide"}
-            or name.startswith(("rmuc2026_visual_", "rmuc2026_perimeter_"))
+            or name.startswith(
+                ("rmuc2026_visual_", "rmuc2026_perimeter_", "rmuc2026_surface_guide__chunk")
+            )
             or name.startswith("rmuc2026_official_wall_")
         )
 
@@ -275,7 +277,9 @@ def _strip_embedded_field_scene(robot_spec: Any) -> None:
             robot_spec.delete(material)
     for mesh in list(robot_spec.meshes):
         name = str(mesh.name)
-        if name.startswith("rmuc2026_visual_mesh_") or name in {
+        if name.startswith(
+            ("rmuc2026_visual_mesh_", "rmuc2026_surface_guide_mesh__chunk")
+        ) or name in {
             "rmuc2026_surface_guide_mesh",
             "rmuc2026_official_wall_402",
             "rmuc2026_official_wall_403",

@@ -21,6 +21,7 @@ from .livery import (
     SOURCE_SURFACE_GUIDE_KIND,
     mask_rulebook_page_edge,
 )
+from .mesh_chunks import MESH_CHUNK_FACES, MeshChunkError, obj_face_count, split_obj
 from .seasons import source_for_step
 from .wall_tip_repair import validate_wall_tip_repair_record
 
@@ -43,6 +44,8 @@ FILL_LIGHT_NAME = "rmuc2026_fill_light"
 SURFACE_GUIDE_KIND = SOURCE_SURFACE_GUIDE_KIND
 SURFACE_GUIDE_TEXTURE_FILE = "visual/official_rulebook_v2_overhead_surface.png"
 SURFACE_GUIDE_MESH_FILE = "visual/rmuc2026_surface_guide.obj"
+SURFACE_GUIDE_MESH_CHUNK_FILE = "visual/rmuc2026_surface_guide__chunk{index}.obj"
+SURFACE_GUIDE_CHUNK_FACES = MESH_CHUNK_FACES
 SURFACE_GUIDE_GEOM_NAME = "rmuc2026_surface_guide"
 SURFACE_GUIDE_GEOM_GROUP = 4
 SURFACE_GUIDE_BAKED_CONTENT = SOURCE_BAKED_SCENE_CONTENT
@@ -534,6 +537,27 @@ def _surface_guide_local_error_bounds(
     return minimum, maximum
 
 
+def _split_surface_guide_mesh(staging: Path, mesh_path: Path) -> list[dict[str, object]]:
+    """Split a large guide mesh in place and return its further chunks.
+
+    The first chunk keeps the guide's file, mesh and geom names.
+    """
+
+    if obj_face_count(mesh_path) <= SURFACE_GUIDE_CHUNK_FACES:
+        return []
+    try:
+        pieces = split_obj(mesh_path, SURFACE_GUIDE_CHUNK_FACES)
+    except MeshChunkError as exc:
+        raise ExportBlocked(f"surface_guide网格分块失败：{exc}") from exc
+    mesh_path.write_text(pieces[0][0], encoding="ascii")
+    chunks: list[dict[str, object]] = []
+    for index, (text, faces) in enumerate(pieces[1:], start=1):
+        relative = SURFACE_GUIDE_MESH_CHUNK_FILE.format(index=index)
+        (staging / relative).write_text(text, encoding="ascii")
+        chunks.append({"file": relative, "sha256": sha256_file(staging / relative), "faces": faces})
+    return chunks
+
+
 def _write_surface_guide_mesh(
     path: Path,
     *,
@@ -923,7 +947,7 @@ def _build_field_xml(
     manifest: dict[str, Any],
     *,
     include_visual_meshes: bool = True,
-    livery: dict[str, str] | None = None,
+    livery: dict[str, Any] | None = None,
 ) -> bytes:
     visual = manifest["visual_meshes"]
     stand_ins = _display_stand_ins(manifest)
@@ -1099,19 +1123,29 @@ def _build_field_xml(
                     "file": livery["mesh_file"],
                 },
             )
-            ET.SubElement(
-                worldbody,
-                "geom",
-                {
-                    "name": SURFACE_GUIDE_GEOM_NAME,
-                    "type": "mesh",
-                    "mesh": "rmuc2026_surface_guide_mesh",
-                    "material": "rmuc2026_surface_guide_material",
-                    "contype": "0",
-                    "conaffinity": "0",
-                    "group": str(SURFACE_GUIDE_GEOM_GROUP),
-                },
-            )
+            guide_geom = {
+                "name": SURFACE_GUIDE_GEOM_NAME,
+                "type": "mesh",
+                "mesh": "rmuc2026_surface_guide_mesh",
+                "material": "rmuc2026_surface_guide_material",
+                "contype": "0",
+                "conaffinity": "0",
+                "group": str(SURFACE_GUIDE_GEOM_GROUP),
+            }
+            ET.SubElement(worldbody, "geom", guide_geom)
+            # A split guide adds one mesh and one geom per further chunk.
+            for index, chunk_file in enumerate(livery.get("chunk_files", ()), start=1):
+                chunk_mesh = f"rmuc2026_surface_guide_mesh__chunk{index}"
+                ET.SubElement(asset, "mesh", {"name": chunk_mesh, "file": chunk_file})
+                ET.SubElement(
+                    worldbody,
+                    "geom",
+                    {
+                        **guide_geom,
+                        "name": f"{SURFACE_GUIDE_GEOM_NAME}__chunk{index}",
+                        "mesh": chunk_mesh,
+                    },
+                )
     ET.SubElement(
         worldbody,
         "geom",
@@ -1304,9 +1338,11 @@ def export_runtime_asset_pack(
                 recommended_spawn=recommended_spawn,
                 world_bounds_xy_m=world_bounds,
             )
+            mesh_chunks = _split_surface_guide_mesh(staging, mesh_destination)
             livery_xml = {
                 "mesh_file": SURFACE_GUIDE_MESH_FILE,
                 "texture_file": SURFACE_GUIDE_TEXTURE_FILE,
+                "chunk_files": [chunk["file"] for chunk in mesh_chunks],
             }
             livery_manifest = {
                 "kind": SURFACE_GUIDE_KIND,
@@ -1323,6 +1359,8 @@ def export_runtime_asset_pack(
                 "edge_processing": edge_processing,
                 "contains_baked_scene_content": list(SURFACE_GUIDE_BAKED_CONTENT),
             }
+            if mesh_chunks:
+                livery_manifest["mesh_chunks"] = mesh_chunks
             livery_files.extend(
                 (
                     _file_record(staging, SURFACE_GUIDE_MESH_FILE, "surface_guide_visual_mesh"),
@@ -1332,6 +1370,10 @@ def export_runtime_asset_pack(
                         "official_rulebook_surface_texture",
                     ),
                 )
+            )
+            livery_files.extend(
+                _file_record(staging, str(chunk["file"]), "surface_guide_visual_mesh")
+                for chunk in mesh_chunks
             )
 
         xml_path = staging / OUTPUT_XML

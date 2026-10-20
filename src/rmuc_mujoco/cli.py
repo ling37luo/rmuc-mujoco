@@ -305,6 +305,14 @@ def build_parser() -> argparse.ArgumentParser:
         check.add_argument("--output", type=Path, required=True)
         check.add_argument("--profiles", choices=RUNTIME_PROFILE_NAMES, nargs="+")
         check.add_argument("--speeds", type=float, nargs="+", default=[0.3, 0.5, 1.0])
+    check.add_argument(
+        "--jobs",
+        type=int,
+        help=(
+            "worker processes for check sections (default: CPU count, at most 8, and on "
+            "Linux one per 2.5 GB of available memory; 1 runs in sequence)"
+        ),
+    )
     benchmark = commands.add_parser("benchmark", help="public rover parallel profile benchmark")
     benchmark.add_argument("asset", type=Path)
     benchmark.add_argument("--output", type=Path, required=True)
@@ -821,7 +829,7 @@ def main(argv: list[str] | None = None) -> int:
             print(json.dumps(payload, indent=2, sort_keys=True))
             return 0
         if args.command == "check":
-            from .regression import run_regression
+            from .regression import default_jobs, run_regression
 
             payload = run_regression(
                 args.asset,
@@ -830,6 +838,7 @@ def main(argv: list[str] | None = None) -> int:
                 profiles=args.profiles,
                 speeds=args.speeds,
                 progress=lambda stage, status: print(f"{stage}: {status}", flush=True),
+                jobs=args.jobs if args.jobs is not None else default_jobs(),
             )
             print(
                 json.dumps(

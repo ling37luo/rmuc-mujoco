@@ -62,7 +62,11 @@ It checks public loading/reset/stepping and manual/policy callbacks, ordinary
 slopes, both fly ramps, isolated stairs, perimeter strips, whole-rover corner
 approaches, source walls and tunnel roofs. It uses the included probes and example robots;
 no private controller, saved route file or checkpoint is needed. All available
-profiles are compared. Add `--profiles collision_only --speeds 0.5` for a shorter run.
+profiles are compared. Sections run in parallel processes (`--jobs`; default:
+the CPU count, at most 8, and on Linux one per 2.5 GB of available memory;
+`--jobs 1` runs them in sequence) with the same results. Eight workers take
+about 4 minutes per season and about 17 GB of memory at peak. Add
+`--profiles collision_only --speeds 0.5` for a shorter run.
 
 `field-contacts` above is a fenced pack with the optional source-wall layer.
 Starting from the quick-start fenced pack and its retained source build:

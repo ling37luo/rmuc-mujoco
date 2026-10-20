@@ -219,11 +219,18 @@ class FieldDisplayController:
                     "field livery geom group disagrees with manifest: "
                     f"expected={self._livery_geom_group}, actual={actual_group}"
                 )
+            # A split livery's further chunks share its group.
+            chunk_prefix = f"{self._livery_geom_name}__chunk"
             group_conflicts = [
-                mujoco.mj_id2name(model, mujoco.mjtObj.mjOBJ_GEOM, geom_id) or f"geom[{geom_id}]"
-                for geom_id in range(int(model.ngeom))
-                if geom_id != livery_geom_id
-                and int(model.geom_group[geom_id]) == self._livery_geom_group
+                name
+                for name in (
+                    mujoco.mj_id2name(model, mujoco.mjtObj.mjOBJ_GEOM, geom_id)
+                    or f"geom[{geom_id}]"
+                    for geom_id in range(int(model.ngeom))
+                    if geom_id != livery_geom_id
+                    and int(model.geom_group[geom_id]) == self._livery_geom_group
+                )
+                if not name.startswith(chunk_prefix)
             ]
             if group_conflicts:
                 raise MujocoModelError(

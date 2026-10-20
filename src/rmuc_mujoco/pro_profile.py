@@ -4,7 +4,8 @@
 ``full``; only the CAD meshes change.  They come from a source build of the
 same STEP release made with a larger visual face budget; a budget above the
 drawing's face count keeps the whole official tessellation.  Large groups are
-split into consecutive face runs, each its own mesh asset and geom.
+split into compact pieces, each its own mesh asset and geom, and pro keeps
+full's scene centre and extent.  Apply it after the other layers.
 """
 
 from __future__ import annotations
@@ -16,50 +17,17 @@ import shutil
 import tempfile
 import xml.etree.ElementTree as ET
 
+import mujoco
+
 from .lite_profile import _mesh_file_record
 from .manifest import FieldAsset, sha256_file
+from .mesh_chunks import MESH_CHUNK_FACES, MeshChunkError, obj_face_count, split_obj
 from .pack import EXPECTED_ARTIFACT_TYPE, ExportBlocked, _source_file
 
 
 PRO_XML = "rmuc2026_field_pro.xml"
 PRO_METHOD = "official_source_build_at_larger_visual_budget_v1"
-# MuJoCo draws one mesh of several hundred thousand faces far slower than the
-# same triangles in pieces: the RMUC 2027 pro profile rendered at 104 fps with
-# its 825k-face group whole and at 1289 fps in pieces of at most 200k faces.
-PRO_CHUNK_FACES = 150_000
-
-
-def _face_count(path: Path) -> int:
-    with path.open("rb") as stream:
-        return sum(line.startswith(b"f ") for line in stream)
-
-
-def _split_obj(path: Path, limit: int) -> list[tuple[str, int]]:
-    """OBJ texts of consecutive, evenly sized face runs of at most ``limit`` faces.
-
-    Even runs keep every chunk well above MuJoCo's four-vertex minimum.
-    """
-
-    vertices: list[str] = []
-    faces: list[str] = []
-    for line in path.read_text(encoding="utf-8").splitlines():
-        if line.startswith(("vn ", "vt ")):
-            raise ExportBlocked(f"cannot split {path.name}: it has normals or texture coordinates")
-        if line.startswith("v "):
-            vertices.append(line)
-        elif line.startswith("f "):
-            faces.append(line)
-    count = math.ceil(len(faces) / limit)
-    bounds = [len(faces) * index // count for index in range(count + 1)]
-    pieces = []
-    for start, stop in zip(bounds, bounds[1:]):
-        run = [[int(token) for token in line.split()[1:]] for line in faces[start:stop]]
-        used = sorted({index for face in run for index in face})
-        renumber = {old: new for new, old in enumerate(used, start=1)}
-        lines = [vertices[index - 1] for index in used]
-        lines += ["f " + " ".join(str(renumber[index]) for index in face) for face in run]
-        pieces.append(("\n".join(lines) + "\n", len(run)))
-    return pieces
+PRO_CHUNK_FACES = MESH_CHUNK_FACES
 
 
 def _source_build_contract(build: Path, source: FieldAsset) -> dict[str, object]:
@@ -128,8 +96,8 @@ def export_pro_pack(
         _source_file(build, record.get("file"), record.get("sha256"), suffix=".obj")
         for record in build_manifest["visual_meshes"]
     ]
-    full_faces = [_face_count(source.root / str(record["file"])) for record in full_visuals]
-    pro_faces = [_face_count(path) for _relative, path, _digest in pro_sources]
+    full_faces = [obj_face_count(source.root / str(record["file"])) for record in full_visuals]
+    pro_faces = [obj_face_count(path) for _relative, path, _digest in pro_sources]
     if any(count == 0 for count in pro_faces):
         raise ExportBlocked("source build contains an empty visual mesh")
     if sum(pro_faces) <= sum(full_faces):
@@ -160,7 +128,10 @@ def export_pro_pack(
                 names = [f"visual_pro/{stem}.obj"]
                 shutil.copyfile(path, staging / names[0])
             else:
-                pieces = _split_obj(path, PRO_CHUNK_FACES)
+                try:
+                    pieces = split_obj(path, PRO_CHUNK_FACES)
+                except MeshChunkError as exc:
+                    raise ExportBlocked(str(exc)) from exc
                 names = [f"visual_pro/{stem}__chunk{index}.obj" for index in range(len(pieces))]
                 for name, (text, _count) in zip(names, pieces):
                     (staging / name).write_text(text, encoding="utf-8")
@@ -206,6 +177,19 @@ def export_pro_pack(
                 geom_parent.insert(list(geom_parent).index(geom) + 1, extra_geom)
         if changed != len(full_visuals):
             raise ExportBlocked("full MJCF visual meshes disagree with the source manifest")
+        # MuJoCo sets the scene centre and extent, which place the shadow map
+        # and the free camera, from each geom's bounding sphere.  Chunks of
+        # groups with long triangles keep large spheres off centre (RMUC 2026:
+        # extent 43.2 to 47.9 m), so pro states full's values.
+        full_model = mujoco.MjModel.from_xml_path(str(source.entrypoint_for("full")))
+        statistic = ET.Element(
+            "statistic",
+            {
+                "center": " ".join(f"{value:.17g}" for value in full_model.stat.center),
+                "extent": f"{full_model.stat.extent:.17g}",
+            },
+        )
+        root.insert(list(root).index(root.find("./asset")), statistic)
         ET.indent(root, space="  ")
         (staging / PRO_XML).write_bytes(
             ET.tostring(root, encoding="utf-8", xml_declaration=True) + b"\n"
