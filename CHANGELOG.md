@@ -19,6 +19,7 @@ does not remove the full field's `DRAFT_BLOCKED` status.
   an EGL framebuffer, and the default `auto` does so on Linux when neither
   `DISPLAY` nor `WAYLAND_DISPLAY` is set. It previously failed with "GLFW
   requires an available desktop display". The report records the mode.
+- CI also tests Python 3.13.
 
 ## [2.1.1] - 2026-10-21
 

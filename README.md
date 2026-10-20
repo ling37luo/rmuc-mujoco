@@ -10,7 +10,7 @@ are downloaded and built locally; see [Asset policy](ASSET_POLICY.md).
 
 ## Quick start
 
-Run these commands from the cloned repository. Python 3.10–3.12 are tested.
+Run these commands from the cloned repository. Python 3.10–3.13 are tested.
 The official STEP download is about 1.25 GB; allow at least 5 GiB of free disk
 space for conversion. Loading a finished pack does not require the CAD tools.
 
