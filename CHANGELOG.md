@@ -4,7 +4,7 @@ User-visible changes by release. Generated field packs and official assets are
 built locally and are not included in releases. Passing individual scenarios
 does not remove the full field's `DRAFT_BLOCKED` status.
 
-## [Unreleased]
+## [2.1.1] - 2026-10-21
 
 - The rulebook livery mesh is split into pieces of at most 150,000 faces, as
   `pro` meshes already are: MuJoCo draws one large mesh far more slowly, and

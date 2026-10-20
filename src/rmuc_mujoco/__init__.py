@@ -222,7 +222,7 @@ __all__ = [
     "verify_official_step",
 ]
 
-__version__ = "2.1.0"
+__version__ = "2.1.1"
 
 # The RMUC 2026 fly-ramp API keeps its 1.x top-level names but now lives in
 # rmuc_mujoco.seasons.rmuc2026; it is imported on first use.
