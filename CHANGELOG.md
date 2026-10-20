@@ -15,6 +15,10 @@ does not remove the full field's `DRAFT_BLOCKED` status.
   `visual_pro` records, livery pieces, perimeter fences, source walls, tunnel
   roofs and edge voids. The previous schema rejected every 2.x pack. Tests now
   check each manifest that `FieldAsset` accepts against it.
+- `benchmark-view` runs without a display: `--display offscreen` renders into
+  an EGL framebuffer, and the default `auto` does so on Linux when neither
+  `DISPLAY` nor `WAYLAND_DISPLAY` is set. It previously failed with "GLFW
+  requires an available desktop display". The report records the mode.
 
 ## [2.1.1] - 2026-10-21
 

@@ -323,7 +323,8 @@ def build_parser() -> argparse.ArgumentParser:
     benchmark.add_argument("--warmup", type=int, default=100)
     benchmark.add_argument("--repeats", type=int, default=3)
     benchmark_view = commands.add_parser(
-        "benchmark-view", help="visible GLFW profile frame throughput with the public rover"
+        "benchmark-view",
+        help="profile frame throughput with the public rover, in a window or offscreen",
     )
     benchmark_view.add_argument("asset", type=Path)
     benchmark_view.add_argument("--output", type=Path, required=True)
@@ -333,6 +334,13 @@ def build_parser() -> argparse.ArgumentParser:
     benchmark_view.add_argument("--width", type=int, default=1280)
     benchmark_view.add_argument("--height", type=int, default=720)
     benchmark_view.add_argument("--screenshots", type=Path)
+    benchmark_view.add_argument(
+        "--display",
+        choices=("auto", "window", "offscreen"),
+        default="auto",
+        help="window: visible GLFW; offscreen: EGL framebuffer without a display; "
+        "auto: offscreen on Linux without DISPLAY or WAYLAND_DISPLAY (default)",
+    )
     run = commands.add_parser(
         "run",
         help="run automatic turning, stair, ordinary-slope or fly-ramp evaluation",
@@ -520,8 +528,9 @@ def main(argv: list[str] | None = None) -> int:
                 height=args.height,
                 screenshots=args.screenshots,
                 progress=lambda message: print(message, flush=True),
+                display=args.display,
             )
-            print(json.dumps({k: result[k] for k in ("status", "medians")}, indent=2))
+            print(json.dumps({k: result[k] for k in ("status", "display", "medians")}, indent=2))
             return 0 if result["status"] == "PASS" else 2
         if args.command == "source":
             season = get_season(args.season)

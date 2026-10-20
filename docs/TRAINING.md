@@ -41,6 +41,12 @@ with completed GPU work and no frame cap. It excludes native MuJoCo UI panels;
 the result is frame-processing capacity, not the monitor's refresh rate. Compare
 the saved views as well as frame rates before choosing a lighter visual profile.
 
+Without a display, over SSH or on a server, `--display offscreen` renders the
+same workload into an EGL framebuffer (OSMesa with `MUJOCO_GL=osmesa`). On Linux
+it is chosen automatically when neither `DISPLAY` nor `WAYLAND_DISPLAY` is set.
+Offscreen frames skip presentation, so compare them only with other offscreen
+runs; the report records the mode.
+
 Start with `full` for viewing and `collision_only` for headless batches. More data
 objects in one worker save repeated model allocations but do not provide CPU
 parallelism. Compare multiple workers on the target host, then reuse the measured

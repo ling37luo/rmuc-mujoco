@@ -93,3 +93,40 @@ def test_png_capture_is_readable(tmp_path):
     _save_png(path, pixels)
     with Image.open(path) as image:
         assert np.array_equal(np.asarray(image), pixels)
+
+
+def test_view_benchmark_renders_offscreen_without_a_display(monkeypatch):
+    from rmuc_mujoco import performance_view
+
+    monkeypatch.setattr(performance_view.sys, "platform", "linux")
+    monkeypatch.delenv("DISPLAY", raising=False)
+    monkeypatch.delenv("WAYLAND_DISPLAY", raising=False)
+    assert performance_view.resolve_display("auto") == "offscreen"
+    assert performance_view.resolve_display("window") == "window"
+    monkeypatch.setenv("WAYLAND_DISPLAY", "wayland-0")
+    assert performance_view.resolve_display("auto") == "window"
+    monkeypatch.setattr(performance_view.sys, "platform", "win32")
+    monkeypatch.delenv("WAYLAND_DISPLAY")
+    assert performance_view.resolve_display("auto") == "window"
+    with pytest.raises(ValueError, match="display"):
+        performance_view.resolve_display("headless")
+
+
+def test_view_benchmark_cli_passes_the_display_mode(tmp_path, monkeypatch, capsys):
+    from rmuc_mujoco import performance_view
+    from rmuc_mujoco.cli import main
+
+    received = {}
+
+    def fake(pack, **kwargs):
+        received.update(kwargs)
+        return {"status": "PASS", "display": "offscreen", "medians": {}}
+
+    monkeypatch.setattr(performance_view, "run_view_benchmark", fake)
+    args = ["benchmark-view", str(tmp_path), "--output", str(tmp_path / "v.json")]
+
+    assert main([*args, "--display", "offscreen"]) == 0
+    assert received["display"] == "offscreen"
+    assert main(args) == 0
+    assert received["display"] == "auto"
+    assert '"display": "offscreen"' in capsys.readouterr().out

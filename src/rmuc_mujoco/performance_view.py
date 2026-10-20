@@ -1,13 +1,19 @@
-"""Visible, uncapped GLFW rendering/physics workload; no native viewer UI panels."""
+"""Uncapped rendering/physics workload in a visible GLFW window or offscreen.
+
+No native viewer UI panels are drawn.  Without a display the workload renders
+into an EGL (or, with MUJOCO_GL=osmesa, OSMesa) framebuffer instead.
+"""
 
 from __future__ import annotations
 
 import json
 import math
 import multiprocessing as mp
+import os
 from pathlib import Path
 import statistics
 import struct
+import sys
 import time
 import traceback
 import zlib
@@ -43,25 +49,64 @@ def _save_png(path, pixels):
     )
 
 
-def _view_worker(conn, pack, profile, spawn, frames, width, height, screenshot_dir, repeat):
-    import glfw
-    from OpenGL import GL
+DISPLAY_MODES = ("auto", "window", "offscreen")
 
-    window, context = None, None
+
+def resolve_display(display):
+    """``window`` or ``offscreen``; ``auto`` renders offscreen on Linux without a display."""
+
+    if display not in DISPLAY_MODES:
+        raise ValueError(f"display must be one of {', '.join(DISPLAY_MODES)}")
+    if display != "auto":
+        return display
+    headless = sys.platform.startswith("linux") and not (
+        os.environ.get("DISPLAY") or os.environ.get("WAYLAND_DISPLAY")
+    )
+    return "offscreen" if headless else "window"
+
+
+def _offscreen_context(width, height):
+    if os.environ.get("MUJOCO_GL", "").lower() == "osmesa":
+        from mujoco.osmesa import GLContext
+    else:
+        from mujoco.egl import GLContext
+    context = GLContext(width, height)
+    context.make_current()
+    return context
+
+
+def _view_worker(
+    conn, pack, profile, spawn, frames, width, height, screenshot_dir, repeat, display="window"
+):
+    glfw = None
+    window, offscreen, context = None, None, None
     try:
-        if not glfw.init():
-            raise RuntimeError("GLFW requires an available desktop display")
-        glfw.window_hint(glfw.FOCUSED, glfw.FALSE)
-        glfw.window_hint(glfw.RESIZABLE, glfw.FALSE)
-        window = glfw.create_window(width, height, f"RMUC benchmark: {profile}", None, None)
-        if window is None:
-            raise RuntimeError("could not create the benchmark window")
-        glfw.make_context_current(window)
-        glfw.swap_interval(0)
+        if display == "window":
+            import glfw
+
+            if not glfw.init():
+                raise RuntimeError(
+                    "GLFW requires an available desktop display; use --display offscreen"
+                )
+            glfw.window_hint(glfw.FOCUSED, glfw.FALSE)
+            glfw.window_hint(glfw.RESIZABLE, glfw.FALSE)
+            window = glfw.create_window(width, height, f"RMUC benchmark: {profile}", None, None)
+            if window is None:
+                raise RuntimeError("could not create the benchmark window")
+            glfw.make_context_current(window)
+            glfw.swap_interval(0)
+        else:
+            offscreen = _offscreen_context(width, height)
+        # PyOpenGL binds to the platform of the context created above.
+        from OpenGL import GL
+
         asset = FieldAsset.open(pack, verify=False)
         load_started = time.perf_counter()
         model, data = load_rover(asset, profile, spawn)
         load_s = time.perf_counter() - load_started
+        if offscreen is not None:
+            model.vis.global_.offwidth = max(width, model.vis.global_.offwidth)
+            model.vis.global_.offheight = max(height, model.vis.global_.offheight)
         option = mujoco.MjvOption()
         option.geomgroup[3] = 0  # Debug collision overlay stays hidden in the visual profiles.
         if profile == "collision_only":
@@ -71,7 +116,11 @@ def _view_worker(conn, pack, profile, spawn, frames, width, height, screenshot_d
         context_started = time.perf_counter()
         context = mujoco.MjrContext(model, mujoco.mjtFontScale.mjFONTSCALE_100)
         context_s = time.perf_counter() - context_started
-        fw, fh = glfw.get_framebuffer_size(window)
+        if window is not None:
+            fw, fh = glfw.get_framebuffer_size(window)
+        else:
+            mujoco.mjr_setBuffer(mujoco.mjtFramebuffer.mjFB_OFFSCREEN, context)
+            fw, fh = width, height
         viewport = mujoco.MjrRect(0, 0, fw, fh)
         center = asset.collision["geom_center_after_translation_m"]
         views = {
@@ -106,13 +155,14 @@ def _view_worker(conn, pack, profile, spawn, frames, width, height, screenshot_d
             reset_slope_spawn(model, data, route)
             for _ in range(10):
                 render()
-                glfw.swap_buffers(window)
-                glfw.poll_events()
+                if window is not None:
+                    glfw.swap_buffers(window)
+                    glfw.poll_events()
             GL.glFinish()
             times = []
             completed_steps = 0
             for frame in range(frames):
-                if glfw.window_should_close(window):
+                if window is not None and glfw.window_should_close(window):
                     raise RuntimeError("benchmark window closed before completion")
                 begin = time.perf_counter()
                 target_steps = int((frame + 1) / (60 * model.opt.timestep))
@@ -121,9 +171,11 @@ def _view_worker(conn, pack, profile, spawn, frames, width, height, screenshot_d
                     mujoco.mj_step(model, data)
                     completed_steps += 1
                 render()
-                glfw.swap_buffers(window)
+                if window is not None:
+                    glfw.swap_buffers(window)
                 GL.glFinish()  # Include completed GPU work, not just command submission.
-                glfw.poll_events()
+                if window is not None:
+                    glfw.poll_events()
                 times.append(time.perf_counter() - begin)
             warnings = _warning_counts(data)
             finite = all(np.isfinite(x).all() for x in (data.qpos, data.qvel, data.qacc))
@@ -148,6 +200,7 @@ def _view_worker(conn, pack, profile, spawn, frames, width, height, screenshot_d
                 kind="result",
                 profile=profile,
                 repeat=repeat,
+                display=display,
                 views=records,
                 framebuffer_px=[fw, fh],
                 model_load_s=load_s,
@@ -170,7 +223,10 @@ def _view_worker(conn, pack, profile, spawn, frames, width, height, screenshot_d
             context.free()
         if window is not None:
             glfw.destroy_window(window)
-        glfw.terminate()
+        if glfw is not None:
+            glfw.terminate()
+        if offscreen is not None:
+            offscreen.free()
         conn.close()
 
 
@@ -185,7 +241,17 @@ def run_view_benchmark(
     height=720,
     screenshots=None,
     progress=None,
+    display="auto",
 ):
+    """Measure each profile's frame rate, each repeat in a fresh process.
+
+    ``display`` is ``window`` (a visible GLFW window), ``offscreen`` (an EGL
+    or OSMesa framebuffer, no display needed) or ``auto``, which renders
+    offscreen on Linux when neither DISPLAY nor WAYLAND_DISPLAY is set.
+    Offscreen frames skip presentation, so compare them only with each other.
+    """
+
+    mode = resolve_display(display)
     if frames < 1 or repeats < 1 or min(width, height) < 64:
         raise ValueError("positive frame/repeat counts and viewport >=64 px are required")
     target = Path(output).expanduser().resolve()
@@ -204,9 +270,19 @@ def run_view_benchmark(
         lighting="flat",
         livery="off",
         frames_per_view=frames,
-        measurement="visible GLFW, swap interval 0, glFinish, physics + scene + render + swap",
+        display=mode,
+        measurement=(
+            "visible GLFW, swap interval 0, glFinish, physics + scene + render + swap"
+            if mode == "window"
+            else "offscreen framebuffer, glFinish, physics + scene + render; no window or swap"
+        ),
         claim_boundary="Uncapped frame workload; excludes native passive-viewer UI panels. "
-        "Device load includes other applications; not display refresh rate.",
+        "Device load includes other applications; not display refresh rate."
+        + (
+            ""
+            if mode == "window"
+            else " Without presentation it is not comparable with visible-window results."
+        ),
         machine_before=machine_snapshot(),
         trials=[],
     )
@@ -221,7 +297,8 @@ def run_view_benchmark(
         for repeat in range(repeats):
             for profile in profiles[repeat % len(profiles) :] + profiles[: repeat % len(profiles)]:
                 if progress:
-                    progress(f"Visible {profile}, repeat {repeat + 1}/{repeats}")
+                    kind = "Visible" if mode == "window" else "Offscreen"
+                    progress(f"{kind} {profile}, repeat {repeat + 1}/{repeats}")
                 parent, child = context.Pipe(False)
                 process = context.Process(
                     target=_view_worker,
@@ -235,6 +312,7 @@ def run_view_benchmark(
                         height,
                         str(screenshots) if screenshots else None,
                         repeat,
+                        mode,
                     ),
                 )
                 process.start()
