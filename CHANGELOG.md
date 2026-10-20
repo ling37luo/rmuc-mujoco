@@ -4,7 +4,7 @@ User-visible changes by release. Generated field packs and official assets are
 built locally and are not included in releases. Passing individual scenarios
 does not remove the full field's `DRAFT_BLOCKED` status.
 
-## [Unreleased]
+## [2.1.2] - 2026-10-21
 
 - Fixed: with a split livery (packs exported by 2.1.1), the display controller
   rejected scenes that attach the field to a robot (`view` with a robot,
