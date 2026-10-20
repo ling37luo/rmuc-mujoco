@@ -2,19 +2,24 @@
 
 The main product is a reproducible full-field interaction baseline. Training
 scenarios use the same source geometry and remain independent of any robot or
-RL framework. This plan has six tasks; it does not require training a new policy.
+RL framework. This plan has seven tasks; it does not require training a new policy.
 
 ## Current baseline
 
-Version 1.3.0 includes local field construction, external robot/controller
-composition, turning and slope batches, fly-ramp regions and an Isaac data
-handoff. The static regression passes on the tested local pack, including
-source-bound isolated stairs, perimeter, reachable corners, walls, high points
-and profile comparisons. Robot task failures remain separate from contact checks.
-Whole-field static contact remains incomplete; complex stair assemblies remain
-outside that validation. This release also includes a repeatable public-rover
-performance matrix, visible frame measurements and PhysX region probes through
-64 environments. These measure the stated workloads, not learned-policy capacity.
+Version 2.1.1 builds RMUC 2026 and RMUC 2027 fields locally from their official
+STEP releases. A pack offers `pro`, `full` (the default) and `interactive_lite`
+views over the same physics, plus `collision_only`, and can carry the rulebook
+livery. External robots and controllers compose with either season. Turning,
+slope, fly-ramp (RMUC 2026), stair, high-point (RMUC 2027) and tunnel scenarios
+are available, with an Isaac data handoff. The static regression `check` passes
+on full packs of both seasons with every section the season has, including
+source-bound isolated stairs, perimeter, reachable corners, walls, high points,
+tunnels and profile comparisons; it runs its sections in parallel, about four
+minutes per season with eight workers. Robot task failures remain separate from
+contact checks. Whole-field static contact remains incomplete; complex stair
+assemblies remain outside that validation. The public-rover performance matrix,
+visible frame measurements and PhysX region probes through 64 environments
+measure the stated workloads, not learned-policy capacity.
 
 ## Tasks and order
 
@@ -26,7 +31,7 @@ performance matrix, visible frame measurements and PhysX region probes through
 | 4 | Wall contact and collision ownership | High | Complete for source-bound side/end and junction routes |
 | 5 | Portable full-field interaction regression | After 2–4 | Complete; sectioned `check` suite with public robots and generated routes |
 | 6 | Parallel performance and profile selection | After baseline regression | Complete for MuJoCo 1/4/16 environments, visible profile comparison and PhysX region contact through 64 |
-| 7 | Multi-season fields (RMUC 2027) | Next | Complete for RMUC 2027 STEP V1.0.0: every `check` section available and passing on the full 2027 pack, tunnel through/over routes published |
+| 7 | Multi-season fields (RMUC 2027) | After 5 | Complete for RMUC 2027 STEP V1.0.0: every `check` section available and passing on the full 2027 pack, tunnel through/over routes published |
 
 ### 1. Public documentation
 
@@ -98,14 +103,15 @@ workload. Reuse the MuJoCo 1/4/16 baseline, then increase Isaac environment coun
 as hardware permits. Report actual counts and resource use rather than promising
 a universal parallel capacity. Check exported terrain, bounds and contact parity.
 
-Compare `full`, `collision_only` and optional `interactive_lite`. Recommend lite
-only if it preserves the needed visual structure and improves memory or viewer
-frame rate by at least 20%; otherwise keep `collision_only` as the resource option.
+Packs offer three views over the same physics: `pro` (the whole official
+tessellation), `full` (each release's moderate budget, the default) and
+`interactive_lite`, plus `collision_only` for headless batches. Large meshes are
+split into pieces, since MuJoCo draws one large mesh far more slowly.
 
 `benchmark` and `benchmark-view` provide reproducible measurements with included
-robots. The tested lite candidate did not reach the 20% recommendation threshold;
-keep `full` for viewing and `collision_only` for headless batches. The optional
-Isaac matrix accepts counts through 64; its sphere/contact workload does not
+robots. Offscreen at 1280×720 on an RTX 5070, `interactive_lite` loads with
+18–34% less memory than `full` and renders 4–26% faster, and `pro` renders at
+about 1,200–1,300 fps with flat lighting. The optional Isaac matrix accepts counts through 64; its sphere/contact workload does not
 measure articulated-robot training. Larger counts and other hosts need their own
 measurements. Detailed hardware results stay in local reports.
 
