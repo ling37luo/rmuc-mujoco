@@ -6,6 +6,10 @@ does not remove the full field's `DRAFT_BLOCKED` status.
 
 ## [Unreleased]
 
+- Fixed: with a split livery (packs exported by 2.1.1), the display controller
+  rejected scenes that attach the field to a robot (`view` with a robot,
+  interactive scenario viewers and `benchmark-view`), because it did not
+  recognise the attached livery pieces.
 - `schema/runtime-pack.schema.json` describes 2.x packs: schema versions 3 and
   4, the `interactive_lite` and `pro` profiles with their `visual_lite` and
   `visual_pro` records, livery pieces, perimeter fences, source walls, tunnel

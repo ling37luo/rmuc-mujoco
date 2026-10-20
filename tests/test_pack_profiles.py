@@ -1264,9 +1264,16 @@ def test_a_large_livery_is_split_into_chunks_with_its_triangles(
     tmp_path: Path, monkeypatch
 ) -> None:
     from rmuc_mujoco.display import FieldDisplayController
+    from rmuc_mujoco.mjcf import compose_with_robot
     from rmuc_mujoco.pack import SURFACE_GUIDE_GEOM_GROUP, SURFACE_GUIDE_MESH_FILE
+    from rmuc_mujoco.slope_demo import rover_xml
 
     source = _synthetic_source_build(tmp_path / "source", include_surface_guide=True)
+    # A robot scene checks that the grid spacing matches the samples.
+    manifest_path = source / "manifest.json"
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    manifest["collision"]["resolution_m"] = 1.0
+    manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
     export_runtime_asset_pack(source, tmp_path / "whole", include_surface_guide=True)
     whole_text = (tmp_path / "whole" / SURFACE_GUIDE_MESH_FILE).read_text(encoding="ascii")
     faces = sum(line.startswith("f ") for line in whole_text.splitlines())
@@ -1303,6 +1310,13 @@ def test_a_large_livery_is_split_into_chunks_with_its_triangles(
     ]
     whole = mujoco.MjModel.from_xml_path(str(whole_asset.entrypoint_for("full")))
     assert model.nmeshface == whole.nmeshface
+    # So does a robot scene, which attaches the field under a prefix.
+    robot = tmp_path / "rover.xml"
+    robot.write_text(rover_xml())
+    composed, _data = compose_with_robot(asset, robot)
+    option = mujoco.MjvOption()
+    FieldDisplayController(asset, livery="on").apply(composed, option.geomgroup)
+    assert option.geomgroup[SURFACE_GUIDE_GEOM_GROUP] == 1
 
 
 def test_a_livery_chunk_unlike_the_guide_is_refused(tmp_path: Path, monkeypatch) -> None:

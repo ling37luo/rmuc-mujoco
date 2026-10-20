@@ -219,8 +219,10 @@ class FieldDisplayController:
                     "field livery geom group disagrees with manifest: "
                     f"expected={self._livery_geom_group}, actual={actual_group}"
                 )
-            # A split livery's further chunks share its group.
-            chunk_prefix = f"{self._livery_geom_name}__chunk"
+            # A split livery's further chunks share its group and, when the
+            # field is attached to a robot scene, its namespace.
+            livery_name = mujoco.mj_id2name(model, mujoco.mjtObj.mjOBJ_GEOM, livery_geom_id)
+            chunk_prefix = f"{livery_name}__chunk"
             group_conflicts = [
                 name
                 for name in (

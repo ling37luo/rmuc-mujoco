@@ -59,6 +59,7 @@ def _model(
     duplicate_key: bool = False,
     include_livery: bool = True,
     robot_group: int = 1,
+    livery_chunks: tuple[str, ...] = (),
 ) -> tuple[mujoco.MjModel, mujoco.MjData]:
     duplicate = (
         '<light name="rmuc2026_key_light" castshadow="false" active="false"/>'
@@ -70,6 +71,11 @@ def _model(
           pos="0 0 -.02" group="4" contype="0" conaffinity="0"/>'''
         if include_livery
         else ""
+    )
+    livery += "".join(
+        f'''<geom name="{name}" type="box" size="1 1 .01" pos="0 0 -.02" group="4"
+          contype="0" conaffinity="0"/>'''
+        for name in livery_chunks
     )
     xml = f"""
 <mujoco>
@@ -275,3 +281,21 @@ def test_malformed_display_contract_is_rejected() -> None:
 
     with pytest.raises(ManifestError, match="must not claim a physics change"):
         FieldDisplayController(asset)
+
+
+def test_attached_livery_chunks_share_the_livery_group() -> None:
+    controller = FieldDisplayController(_asset(), lighting="flat", livery="on")
+    model, _data = _model(
+        prefix="attached/", livery_chunks=("attached/rmuc2026_surface_guide__chunk1",)
+    )
+    geomgroup = np.zeros(6, dtype=np.uint8)
+
+    controller.apply(model, geomgroup)
+
+    assert geomgroup[4] == 1
+    # A chunk-like name outside the livery's namespace is still a conflict.
+    stray, _data = _model(
+        prefix="attached/", livery_chunks=("other/rmuc2026_surface_guide__chunk1",)
+    )
+    with pytest.raises(MujocoModelError, match="other/rmuc2026_surface_guide__chunk1"):
+        controller.apply(stray, np.zeros(6, dtype=np.uint8))
